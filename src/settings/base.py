@@ -38,8 +38,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    ### custom apps ###
     'apps.assistance.apps.AssistanceConfig',
     'apps.notifications.apps.NotificationsConfig',
+
+
+    ### 3rd-party dependencies ###
+    'django_ckeditor_5',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
