@@ -1,4 +1,8 @@
 # Changelog
+## [0.1.1] - 2026-04-10
+### ✨ Added
+- clean slate baseline --- modular app structure (without code yet)
+
 ## [0.1.0] - 2026-04-09
 ### ✨ Added
 Initialized TracePoint Django project baseline
