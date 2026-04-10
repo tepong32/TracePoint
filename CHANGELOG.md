@@ -1,4 +1,8 @@
 # Changelog
+## [0.2.0] - 2026-04-10
+### ✨ Added
+- TracePoint MVP data architecture and modular assistance models
+
 ## [0.1.1] - 2026-04-10
 ### ✨ Added
 - clean slate baseline --- modular app structure (without code yet)
