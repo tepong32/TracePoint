@@ -1,4 +1,14 @@
 # Changelog
+## [0.3.0] - 2026-04-12
+### ✨ Added
+First working citizen-facing request submission and tracking flow
+- modular service layer added
+- auto citizen linking via phone and email
+- request timeline auto-created on submission
+- public submit and tracking routes wired
+- root and CKEditor URL integration fixed
+- browser-tested first citizen MVP slice
+
 ## [0.2.0] - 2026-04-10
 ### ✨ Added
 - TracePoint MVP data architecture and modular assistance models
