@@ -6,6 +6,23 @@
 <p><strong>Status:</strong> {{ request_obj.status }}</p>
 <p><strong>Submitted:</strong> {{ request_obj.submitted_at }}</p>
 
+<h3>Documents</h3>
+<ul>
+    {% for doc in documents %}
+        <li>
+            {{ doc.get_document_type_display }}
+            {% if doc.file %}
+                — <a href="{{ doc.file.url }}">View file</a>
+            {% endif %}
+            {% if doc.was_replaced_by_citizen %}
+                <span title="This document was replaced with a newer upload">(replaced)</span>
+            {% endif %}
+        </li>
+    {% empty %}
+        <li>No documents uploaded yet.</li>
+    {% endfor %}
+</ul>
+
 <h3>Timeline</h3>
 <ul>
     {% for item in request_obj.timeline.all %}

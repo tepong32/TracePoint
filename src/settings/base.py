@@ -114,3 +114,14 @@ STATIC_URL = 'static/'
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Citizen document uploads (override via env for SaaS / tenant tuning later)
+TRACEPOINT_UPLOAD_MAX_SIZE_MB = int(os.getenv('TRACEPOINT_UPLOAD_MAX_SIZE_MB', '5'))
+TRACEPOINT_UPLOAD_ALLOWED_EXTENSIONS = tuple(
+    ext.strip().lower()
+    for ext in os.getenv(
+        'TRACEPOINT_UPLOAD_ALLOWED_EXTENSIONS',
+        '.pdf,.doc,.docx,.txt,.rtf,.jpg,.jpeg,.png,.gif,.xls,.xlsx,.csv,.ppt,.pptx',
+    ).split(',')
+    if ext.strip()
+)

@@ -57,8 +57,13 @@ def track_request_view(request, tracking_code):
         is_active=True,
     )
 
+    documents = (
+        request_obj.documents.filter(is_removed=False)
+        .order_by("-uploaded_at")
+    )
+
     return render(
         request,
         "assistance/public/track_request.html",
-        {"request_obj": request_obj}
+        {"request_obj": request_obj, "documents": documents},
     )
