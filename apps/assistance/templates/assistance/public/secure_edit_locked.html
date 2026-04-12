@@ -1,12 +1,12 @@
-<h1>Request Tracking</h1>
+<h1>This request is locked</h1>
 
-<p><strong>Tracking Code:</strong> {{ request_obj.tracking_code }}</p>
-<p><strong>Citizen:</strong> {{ request_obj.full_name }}</p>
+<p>You can no longer upload or remove documents for this request.</p>
+
+<p><strong>Tracking code:</strong> {{ request_obj.tracking_code }}</p>
 <p><strong>Program:</strong> {{ request_obj.program.name }}</p>
 <p><strong>Status:</strong> {{ request_obj.status }}</p>
-<p><strong>Submitted:</strong> {{ request_obj.submitted_at }}</p>
 
-<h3>Documents</h3>
+<h2>Documents on file</h2>
 <ul>
     {% for doc in documents %}
         <li>
@@ -19,17 +19,8 @@
             {% endif %}
         </li>
     {% empty %}
-        <li>No documents uploaded yet.</li>
+        <li>No documents uploaded.</li>
     {% endfor %}
 </ul>
 
-<h3>Timeline</h3>
-<ul>
-    {% for item in request_obj.timeline.all %}
-        <li>
-            {{ item.created_at }} — {{ item.message }}
-        </li>
-    {% empty %}
-        <li>No timeline yet.</li>
-    {% endfor %}
-</ul>
+<p><a href="{% url 'assistance:track_request' tracking_code=request_obj.tracking_code %}">Back to tracking</a></p>

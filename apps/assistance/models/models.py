@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.db.models import Q
 from django_ckeditor_5.fields import CKEditor5Field
 
 
@@ -82,13 +83,27 @@ class CitizenRequest(models.Model):
 
 
 class RequestDocument(models.Model):
+    """
+    At most one *active* row per (request, document_type); soft-removed rows stay
+    for audit while keeping storage until superseded by a new upload.
+    """
+
+    DOCUMENT_TYPE_CHOICES = [
+        ("birth_cert", "Birth Certificate"),
+        ("indigency", "Certificate of Indigency"),
+        ("school_id", "School ID"),
+        ("grade_card", "Report Card / Grade Card"),
+        ("cert_of_enrollment", "Certificate of Enrollment/Registration"),
+        ("others", "Other Supporting Document"),
+    ]
+
     request = models.ForeignKey(
         CitizenRequest,
         on_delete=models.CASCADE,
         related_name="documents"
     )
 
-    document_type = models.CharField(max_length=50)
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES, default="others")
     file = models.FileField(upload_to="tracepoint/documents/")
     status = models.CharField(max_length=20, default="pending")
     remarks = models.TextField(blank=True)
@@ -96,9 +111,28 @@ class RequestDocument(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    is_removed = models.BooleanField(default=False, db_index=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
+    replacement_count = models.PositiveIntegerField(
+        default=0,
+        help_text="How many times a stored file was superseded by a new upload (citizen replace/re-upload).",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("request", "document_type"),
+                condition=Q(is_removed=False),
+                name="assistance_requestdocument_active_unique_type",
+            ),
+        ]
+
     def __str__(self):
-    	return f"{self.request.tracking_code} - {self.document_type}"
-    	
+        return f"{self.request.tracking_code} - {self.document_type}"
+
+    @property
+    def was_replaced_by_citizen(self) -> bool:
+        return self.replacement_count > 0
 
 class RequestTimeline(models.Model):
     request = models.ForeignKey(
