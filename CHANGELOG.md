@@ -1,4 +1,16 @@
 # Changelog
+## [0.4.1] - 2026-04-12
+### ✨ Added
+v0.4.1 patch: secure edit flow completion
+
+- completed citizen secure-edit routes using secure_edit_token
+- wired upload and delete endpoints to DocumentService
+- added transaction-safe file cleanup after successful DB commit
+- preserved legacy AJAX response contracts for frontend stability
+- added locked secure-edit citizen template
+- expanded public secure-edit endpoint tests
+- finalized document lifecycle service adoption for v0.4 milestone
+
 ## [0.4.0] - 2026-04-12
 ### ✨ Added
 @
