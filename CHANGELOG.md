@@ -1,4 +1,16 @@
 # Changelog
+## [0.4.0] - 2026-04-12
+### ✨ Added
+@
+TracePoint document pipeline — service layer and citizen document lifecycle
+
+- Introduced DocumentService (upload/replace, soft-delete) with shared upload validation and RequestTimeline events for future audit/notification adapters.
+- Extended RequestDocument with soft-delete fields, replacement tracking, canonical document types, and a partial unique constraint (one active document per type per request).
+- Track page shows active documents and a '(replaced)' marker when replacement_count > 0; admin exposes removal/replacement columns.
+- Upload limits configurable via TRACEPOINT_UPLOAD_* settings and .env.example.
+- Added focused tests for replace storage deletion, soft-delete file retention, re-upload after soft-delete, and locked requests.
+@
+
 ## [0.3.0] - 2026-04-12
 ### ✨ Added
 First working citizen-facing request submission and tracking flow
