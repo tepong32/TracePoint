@@ -1,3 +1,9 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models.models import AssistanceProgram, CitizenProfile, CitizenRequest, RequestDocument, RequestTimeline
+
+admin.site.register(AssistanceProgram)
+admin.site.register(CitizenProfile)
+admin.site.register(CitizenRequest)
+admin.site.register(RequestDocument)
+admin.site.register(RequestTimeline)

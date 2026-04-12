@@ -2,7 +2,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 
-from apps.assistance.models import AssistanceProgram
+from apps.assistance.models.models import AssistanceProgram, CitizenRequest
 from apps.assistance.services.request_service import RequestSubmissionService
 
 
@@ -48,4 +48,17 @@ def submit_request_view(request, program_slug):
         request,
         "assistance/public/submit_request.html",
         {"program": program}
+    )
+
+def track_request_view(request, tracking_code):
+    request_obj = get_object_or_404(
+        CitizenRequest.objects.select_related("program", "citizen"),
+        tracking_code=tracking_code,
+        is_active=True,
+    )
+
+    return render(
+        request,
+        "assistance/public/track_request.html",
+        {"request_obj": request_obj}
     )
