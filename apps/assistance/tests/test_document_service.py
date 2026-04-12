@@ -3,7 +3,7 @@ import tempfile
 
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import TransactionTestCase, override_settings
 
 from apps.assistance.models import AssistanceProgram
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
@@ -13,7 +13,7 @@ _TEST_MEDIA = tempfile.mkdtemp(prefix="tracepoint_doc_tests_")
 
 
 @override_settings(MEDIA_ROOT=_TEST_MEDIA)
-class DocumentServiceTests(TestCase):
+class DocumentServiceTests(TransactionTestCase):
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()

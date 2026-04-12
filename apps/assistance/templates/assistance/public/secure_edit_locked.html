@@ -1,0 +1,26 @@
+<h1>This request is locked</h1>
+
+<p>You can no longer upload or remove documents for this request.</p>
+
+<p><strong>Tracking code:</strong> {{ request_obj.tracking_code }}</p>
+<p><strong>Program:</strong> {{ request_obj.program.name }}</p>
+<p><strong>Status:</strong> {{ request_obj.status }}</p>
+
+<h2>Documents on file</h2>
+<ul>
+    {% for doc in documents %}
+        <li>
+            {{ doc.get_document_type_display }}
+            {% if doc.file %}
+                — <a href="{{ doc.file.url }}">View file</a>
+            {% endif %}
+            {% if doc.was_replaced_by_citizen %}
+                <span title="This document was replaced with a newer upload">(replaced)</span>
+            {% endif %}
+        </li>
+    {% empty %}
+        <li>No documents uploaded.</li>
+    {% endfor %}
+</ul>
+
+<p><a href="{% url 'assistance:track_request' tracking_code=request_obj.tracking_code %}">Back to tracking</a></p>

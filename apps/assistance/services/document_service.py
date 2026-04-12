@@ -172,8 +172,11 @@ class DocumentService:
                     )
 
         assert doc is not None
-        for name in superseded_names:
-            _delete_stored_file_by_name(name)
+        for name in tuple(superseded_names):
+            if name:
+                transaction.on_commit(
+                    lambda n=name: _delete_stored_file_by_name(n),
+                )
         return doc
 
     @classmethod

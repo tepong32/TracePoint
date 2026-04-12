@@ -1,0 +1,117 @@
+<h1>Update your request</h1>
+
+<p><strong>Tracking code:</strong> {{ request_obj.tracking_code }}</p>
+<p><strong>Program:</strong> {{ request_obj.program.name }}</p>
+
+<p><a href="{% url 'assistance:track_request' tracking_code=request_obj.tracking_code %}">Back to tracking</a></p>
+
+<h2>Your documents</h2>
+<ul id="document-list">
+    {% for doc in documents %}
+        <li data-doc-id="{{ doc.id }}">
+            {{ doc.get_document_type_display }}
+            {% if doc.file %}
+                — <a href="{{ doc.file.url }}">View file</a>
+            {% endif %}
+            {% if doc.was_replaced_by_citizen %}
+                <span title="This document was replaced with a newer upload">(replaced)</span>
+            {% endif %}
+            <button type="button" class="btn-delete-doc">Remove</button>
+        </li>
+    {% empty %}
+        <li>No documents uploaded yet.</li>
+    {% endfor %}
+</ul>
+
+<h2>Upload or replace a document</h2>
+<form id="upload-form">
+    {% csrf_token %}
+    <label>Document type</label><br>
+    <select name="document_type" id="id_document_type" required>
+        <option value="">— Select —</option>
+        {% for value, label in document_type_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+    </select><br><br>
+    <label>File</label><br>
+    <input type="file" name="file" id="id_file" required><br><br>
+    <button type="submit">Upload</button>
+</form>
+<p id="upload-status" role="status"></p>
+
+<script>
+(function () {
+    const uploadUrl = "{% url 'assistance:upload_document_ajax' secure_edit_token=request_obj.secure_edit_token %}";
+    const deleteUrl = "{% url 'assistance:delete_document' secure_edit_token=request_obj.secure_edit_token %}";
+    const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrf = csrftoken || getCookie("csrftoken");
+
+    document.getElementById("upload-form").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        const statusEl = document.getElementById("upload-status");
+        statusEl.textContent = "";
+        const form = ev.target;
+        const fd = new FormData(form);
+        fetch(uploadUrl, {
+            method: "POST",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRFToken": csrf,
+            },
+            body: fd,
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                statusEl.textContent = data.message || "";
+                if (data.status === "success") {
+                    window.location.reload();
+                }
+            })
+            .catch(function () {
+                statusEl.textContent = "Upload failed.";
+            });
+    });
+
+    document.getElementById("document-list").addEventListener("click", function (ev) {
+        if (!ev.target.classList.contains("btn-delete-doc")) return;
+        const li = ev.target.closest("li");
+        const docId = li && li.getAttribute("data-doc-id");
+        if (!docId) return;
+        const fd = new FormData();
+        fd.append("doc_id", docId);
+        fd.append("csrfmiddlewaretoken", csrf);
+        fetch(deleteUrl, {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrf },
+            body: fd,
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === "success") {
+                    window.location.reload();
+                } else {
+                    alert(data.message || "Delete failed.");
+                }
+            })
+            .catch(function () {
+                alert("Delete failed.");
+            });
+    });
+})();
+</script>
