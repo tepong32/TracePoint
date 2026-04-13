@@ -1,18 +1,21 @@
 import shutil
-import tempfile
+from pathlib import Path
 
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TransactionTestCase, override_settings
 
-from apps.assistance.models import AssistanceProgram
+from apps.assistance.models import AssistanceProgram, RequestTimeline
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
 from apps.assistance.services.request_service import RequestSubmissionService
 
-_TEST_MEDIA = tempfile.mkdtemp(prefix="tracepoint_doc_tests_")
+_TEST_MEDIA_ROOT = Path(__file__).resolve().parents[3] / ".test_media"
+_TEST_MEDIA_ROOT.mkdir(exist_ok=True)
+_TEST_MEDIA = _TEST_MEDIA_ROOT / "document_service"
+_TEST_MEDIA.mkdir(exist_ok=True)
 
 
-@override_settings(MEDIA_ROOT=_TEST_MEDIA)
+@override_settings(MEDIA_ROOT=str(_TEST_MEDIA))
 class DocumentServiceTests(TransactionTestCase):
     @classmethod
     def tearDownClass(cls):
@@ -112,3 +115,24 @@ class DocumentServiceTests(TransactionTestCase):
                 document_type="others",
                 uploaded_file=self._pdf("x.pdf"),
             )
+
+    def test_needs_attention_locked_request_accepts_upload_and_returns_to_review(self):
+        self.req.status = "needs_attention"
+        self.req.is_locked = True
+        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+
+        DocumentService.upload_or_replace(
+            citizen_request=self.req,
+            document_type="others",
+            uploaded_file=self._pdf("x.pdf"),
+        )
+
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.status, "under_review")
+        self.assertTrue(self.req.is_locked)
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="citizen_update_received",
+            ).exists()
+        )

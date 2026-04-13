@@ -5,12 +5,17 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.assistance.models.models import AssistanceProgram, CitizenRequest, RequestDocument
+from apps.assistance.models.models import (
+    AssistanceProgram,
+    CitizenRequest,
+    RequestDocument,
+)
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
 from apps.assistance.services.request_service import RequestSubmissionService
 from apps.assistance.services.lifecycle import (
     get_progress_step,
     get_public_status_label,
+    requires_citizen_action,
 )
 
 
@@ -23,7 +28,9 @@ def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
 
 
 def _documents_locked(request_obj: CitizenRequest) -> bool:
-    return bool(request_obj.is_locked)
+    return bool(
+        request_obj.is_locked and not requires_citizen_action(request_obj.status)
+    )
 
 
 def submit_request_view(request, program_slug):
