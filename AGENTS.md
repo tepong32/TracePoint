@@ -211,11 +211,11 @@ can safely infer from the repo.
 
 ### Project Ownership
 
-- Primary product owner:
-- Primary engineering owner:
-- Gar's role and decision authority:
-- Codex should ask before:
-- Codex can act without asking on:
+- Primary product owner: Cristino "tEppy" Agapito Jr.
+- Primary engineering owner: Cristino "tEppy" Agapito Jr.
+- Gar's role and decision authority: Architecture partner, workflow policy reviewer, service-layer design guidance, and release/milestone advisory
+- Codex should ask before: schema migrations, authentication changes, production settings, public route contract changes, workflow status additions/removals, or anything affecting audit retention
+- Codex can act without asking on: focused tests, service-layer refactors that preserve behavior, docs updates, timeline logging additions, lifecycle helper extensions, and low-risk Windows test environment fixes
 
 Suggested fill:
 
@@ -226,10 +226,10 @@ Suggested fill:
 
 ### Current Milestone
 
-- Current milestone after `v0.4.1`:
-- Target outcome for `v0.5`:
-- Highest priority feature:
-- Highest risk area:
+- Current milestone after `v0.4.1`: v0.5 lifecycle engine branch in active development
+- Target outcome for `v0.5`: citizen-facing lifecycle orchestration with progress tracking, action-needed recovery loop, claimable fulfillment path, and notification adapter preparation
+- Highest priority feature: document completeness and first-upload auto-transition logic
+- Highest risk area: status transition duplication outside lifecycle service
 
 Suggested fill:
 
@@ -238,12 +238,12 @@ Suggested fill:
 
 ### Domain Rules
 
-- Official list of request statuses:
-- Which statuses lock citizen editing:
-- Required documents per assistance program:
-- Whether email or phone is the stronger citizen identifier:
-- Whether staff can override uploaded document status:
-- Retention rule for removed/replaced documents:
+- Official list of request statuses: submitted, awaiting_documents, under_review, needs_attention, approved, claimable, claimed, closed
+- Which statuses lock citizen editing: approved, claimable, claimed, closed
+- Required documents per assistance program: program-specific and must be configurable through `AssistanceProgram` requirements in future iterations
+- Whether email or phone is the stronger citizen identifier: phone first, then email fallback (current confirmed service behavior)
+- Whether staff can override uploaded document status: yes, with timeline preservation and future staff audit notes
+- Retention rule for removed/replaced documents: replaced files are hard-deleted after DB commit; citizen soft-deletes hide rows but preserve storage until superseded
 
 Suggested fill:
 
@@ -253,10 +253,10 @@ Suggested fill:
 
 ### Notifications
 
-- Email provider:
-- SMS provider:
-- Whether notifications are strict/blocking or best-effort:
-- Events that should trigger notifications:
+- Email provider: adapter-based, provider undecided
+- SMS provider: adapter-based, must support self-hosted Android SMS gateway compatibility
+- Whether notifications are strict/blocking or best-effort: best-effort with timeline-safe fallback
+- Events that should trigger notifications: needs_attention, claimable, closed, and future approval confirmation milestones
 
 Suggested fill:
 
@@ -277,11 +277,11 @@ Suggested fill:
 
 ### Staff Workflow
 
-- Staff roles:
-- Staff dashboard expectations:
-- Approval/rejection lifecycle:
-- Printable document requirements:
-- Audit timeline requirements:
+- Staff roles: reviewer, approver, release/fulfillment officer, future supervisor/escalation roles
+- Staff dashboard expectations: aging queues, action-needed backlog, claimable requests, SLA visibility, and citizen compliance visibility
+- Approval/rejection lifecycle: under_review → needs_attention | approved → claimable → claimed → closed
+- Printable document requirements: request summary, citizen details, timeline snapshot, and uploaded document listing
+- Audit timeline requirements: append-only timeline for citizen, staff, lifecycle, and fulfillment transitions
 
 Suggested fill:
 
