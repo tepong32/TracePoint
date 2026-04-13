@@ -6,6 +6,19 @@
 <p><strong>Status:</strong> {{ request_obj.status }}</p>
 <p><strong>Submitted:</strong> {{ request_obj.submitted_at }}</p>
 
+<hr>
+<h3>Progress</h3>
+<div style="font-size: 1.5rem;">
+    {% for step in "12345678" %}
+        {% if forloop.counter <= progress_step %}
+            ●
+        {% else %}
+            ○
+        {% endif %}
+    {% endfor %}
+</div>
+<p>{{ public_status_label }}</p>
+
 <h3>Documents</h3>
 <ul>
     {% for doc in documents %}

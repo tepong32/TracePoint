@@ -8,6 +8,10 @@ from django.views.decorators.http import require_POST
 from apps.assistance.models.models import AssistanceProgram, CitizenRequest, RequestDocument
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
 from apps.assistance.services.request_service import RequestSubmissionService
+from apps.assistance.services.lifecycle import (
+    get_progress_step,
+    get_public_status_label,
+)
 
 
 def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
@@ -81,7 +85,12 @@ def track_request_view(request, tracking_code):
     return render(
         request,
         "assistance/public/track_request.html",
-        {"request_obj": request_obj, "documents": documents},
+        {
+            "request_obj": request_obj,
+            "documents": documents,
+            "progress_step": get_progress_step(request_obj.status),
+            "public_status_label": get_public_status_label(request_obj.status),
+        },
     )
 
 
