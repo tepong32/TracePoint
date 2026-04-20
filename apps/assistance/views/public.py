@@ -1,4 +1,6 @@
 # apps/assistance/views/public.py
+import logging
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -19,6 +21,8 @@ from apps.assistance.services.lifecycle import (
     get_public_status_label,
     requires_citizen_action,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
