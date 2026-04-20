@@ -1,4 +1,6 @@
 # apps/assistance/views/public.py
+import logging
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -11,12 +13,15 @@ from apps.assistance.models.models import (
     RequestDocument,
 )
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
+from apps.assistance.services.lifecycle_service import apply_auto_status_transition
 from apps.assistance.services.request_service import RequestSubmissionService
 from apps.assistance.services.lifecycle import (
     get_progress_step,
     get_public_status_label,
     requires_citizen_action,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
@@ -162,6 +167,12 @@ def upload_document_ajax(request, secure_edit_token):
         return _ajax_upload_error(str(e))
     except ValidationError as e:
         return _ajax_upload_error(str(e))
+
+    try:
+        apply_auto_status_transition(request_obj)
+    except Exception as e:
+        # Safety guard: never break existing upload response shape.
+        logger.warning(f"Auto transition failed: {e}")
 
     return JsonResponse(
         {"status": "success", "message": "File uploaded successfully."},
