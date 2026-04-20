@@ -1,13 +1,9 @@
-import logging
-
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
 from apps.assistance.models import RequestDocument
-from apps.assistance.services.lifecycle_service import apply_auto_status_transition
-
-logger = logging.getLogger(__name__)
+from apps.assistance.views.public import apply_auto_status_transition
 
 
 def _ajax_staff_error(message: str):
@@ -35,9 +31,9 @@ def mswd_update_document_ajax(request, document_id):
 
     try:
         apply_auto_status_transition(document.request)
-    except Exception as e:
+    except Exception:
         # Safety guard: never break existing AJAX response shape.
-        logger.warning(f"Auto transition failed: {e}")
+        pass
 
     return JsonResponse(
         {"status": "success", "message": "Document updated successfully."},
