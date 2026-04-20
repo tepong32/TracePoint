@@ -3,6 +3,7 @@ import secrets
 import shutil
 from pathlib import Path
 
+from django.db.models import Q
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TransactionTestCase, override_settings
 from django.urls import reverse
@@ -12,6 +13,7 @@ from apps.assistance.models import (
     CitizenProfile,
     CitizenRequest,
     RequestDocument,
+    RequestTimeline,
 )
 from apps.assistance.services.document_service import DocumentService
 from apps.assistance.services.request_service import RequestSubmissionService
@@ -81,7 +83,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertContains(r, "Update your request")
         self.assertNotContains(r, "locked")
 
-    def test_needs_attention_upload_returns_to_review(self):
+    def test_needs_attention_upload_returns_to_pending_if_incomplete(self):
         self.req.status = "needs_attention"
         self.req.is_locked = True
         self.req.save(update_fields=["status", "is_locked", "updated_at"])
@@ -100,9 +102,21 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         data = json.loads(r.content.decode())
         self.assertEqual(data["status"], "success")
         self.req.refresh_from_db()
-        self.assertEqual(self.req.status, "under_review")
+        self.assertEqual(self.req.status, "pending")
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="status_change",
+            )
+            .filter(
+                Q(message__contains="old_status=needs_attention")
+                & Q(message__contains="new_status=pending")
+            ).exists()
+        )
 
     def test_upload_ajax_success_shape(self):
+        self.req.status = "under_review"
+        self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
             kwargs={"secure_edit_token": self.req.secure_edit_token},
@@ -124,6 +138,8 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
                 request=self.req, document_type="birth_cert", is_removed=False
             ).exists()
         )
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.status, "pending")
 
     def test_upload_ajax_locked(self):
         self.req.is_locked = True
