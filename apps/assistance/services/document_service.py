@@ -8,6 +8,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
+from apps.assistance.services.lifecycle import (
+    next_status_after_citizen_update,
+    requires_citizen_action,
+)
 
 
 class DocumentServiceError(Exception):
@@ -41,7 +45,9 @@ def _allowed_document_types() -> frozenset[str]:
 def _assert_request_allows_document_changes(citizen_request: CitizenRequest) -> None:
     if not citizen_request.is_active:
         raise DocumentServiceError("This request is no longer active.")
-    if citizen_request.is_locked:
+    if citizen_request.is_locked and not requires_citizen_action(
+        citizen_request.status
+    ):
         raise DocumentServiceError("This request is locked and cannot be changed.")
 
 
@@ -67,6 +73,25 @@ def _delete_stored_file_by_name(name: str | None) -> None:
         default_storage.delete(name)
     except OSError:
         pass
+
+
+def _return_to_review_after_citizen_update(
+    *,
+    citizen_request: CitizenRequest,
+    created_by=None,
+) -> None:
+    next_status = next_status_after_citizen_update(citizen_request.status)
+    if next_status == citizen_request.status:
+        return
+
+    citizen_request.status = next_status
+    citizen_request.save(update_fields=["status", "updated_at"])
+    _timeline_event(
+        citizen_request=citizen_request,
+        event_type="citizen_update_received",
+        message="Citizen update received; request returned to staff review.",
+        created_by=created_by,
+    )
 
 
 class DocumentService:
@@ -124,6 +149,10 @@ class DocumentService:
                     ),
                     created_by=created_by,
                 )
+                _return_to_review_after_citizen_update(
+                    citizen_request=citizen_request,
+                    created_by=created_by,
+                )
                 doc = active
             else:
                 removed = (
@@ -156,6 +185,10 @@ class DocumentService:
                         ),
                         created_by=created_by,
                     )
+                    _return_to_review_after_citizen_update(
+                        citizen_request=citizen_request,
+                        created_by=created_by,
+                    )
                     doc = removed
                 else:
                     doc = RequestDocument.objects.create(
@@ -168,6 +201,10 @@ class DocumentService:
                         citizen_request=citizen_request,
                         event_type="document_uploaded",
                         message=f"Supporting document ({document_type}) uploaded.",
+                        created_by=created_by,
+                    )
+                    _return_to_review_after_citizen_update(
+                        citizen_request=citizen_request,
                         created_by=created_by,
                     )
 
@@ -210,5 +247,9 @@ class DocumentService:
                 citizen_request=citizen_request,
                 event_type="document_removed",
                 message=f"Supporting document ({doc.document_type}) removed by requester.",
+                created_by=created_by,
+            )
+            _return_to_review_after_citizen_update(
+                citizen_request=citizen_request,
                 created_by=created_by,
             )

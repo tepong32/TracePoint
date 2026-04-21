@@ -1,21 +1,58 @@
 <h1>Request Tracking</h1>
 
-<p><strong>Tracking Code:</strong> {{ request_obj.tracking_code }}</p>
-<p><strong>Citizen:</strong> {{ request_obj.full_name }}</p>
-<p><strong>Program:</strong> {{ request_obj.program.name }}</p>
-<p><strong>Status:</strong> {{ request_obj.status }}</p>
-<p><strong>Submitted:</strong> {{ request_obj.submitted_at }}</p>
+<div style="border: 1px solid #ddd; padding: 1rem; margin-bottom: 1rem;">
+    <p><strong>Tracking code:</strong> {{ request_obj.tracking_code }}</p>
+    <p><strong>Program:</strong> {{ request_obj.program.name }}</p>
+    <p><strong>Status:</strong> {{ public_status_label }}</p>
+    <p><strong>Progress:</strong> Step {{ progress_step }}</p>
+    <p>
+        <strong>Current step:</strong>
+        {% if progress_step == 1 %}
+            Step 1: Request submitted
+        {% elif progress_step == 2 %}
+            Step 2: Upload documents
+        {% else %}
+            Step 3: Review and updates
+        {% endif %}
+    </p>
+    <p><strong>Submitted:</strong> {{ request_obj.submitted_at }}</p>
+</div>
 
-<h3>Documents</h3>
+{% if not request_obj.is_locked or request_obj.status == "needs_attention" %}
+    <div style="background: #eef5ff; border: 1px solid #7aa7d9; color: #163b5c; padding: 1rem; margin-bottom: 1rem;">
+        You may upload or update documents.
+    </div>
+    <p><a href="{% url 'assistance:secure_edit' secure_edit_token=request_obj.secure_edit_token %}">Go to Step 2: Upload Supporting Documents</a></p>
+{% endif %}
+
+{% if request_obj.status == "needs_attention" %}
+    <div style="background: #fff7e6; border: 1px solid #e0a100; color: #5f4300; padding: 1rem; margin-bottom: 1rem;">
+        Some documents need attention. Please return to edit page.
+    </div>
+{% endif %}
+
+<hr>
+
+<h2>Progress</h2>
+<ol>
+    <li>{% if progress_step == 1 %}<strong>Step 1: Request submitted</strong>{% else %}Step 1: Request submitted{% endif %}</li>
+    <li>{% if progress_step >= 2 %}<strong>Step 2: Upload documents</strong>{% else %}Step 2: Upload documents{% endif %}</li>
+    <li>{% if progress_step >= 3 %}<strong>Step 3: Review and updates</strong>{% else %}Step 3: Review and updates{% endif %}</li>
+</ol>
+
+<p><strong>Current public status:</strong> {{ public_status_label }}</p>
+
+<h2>Documents</h2>
 <ul>
     {% for doc in documents %}
-        <li>
-            {{ doc.get_document_type_display }}
-            {% if doc.file %}
-                — <a href="{{ doc.file.url }}">View file</a>
+        <li style="margin-bottom: 0.75rem;">
+            <strong>{{ doc.get_document_type_display }}</strong><br>
+            <span>Status: {{ doc.get_status_display }}</span>
+            {% if doc.remarks %}
+                <br><span>Remarks: {{ doc.remarks }}</span>
             {% endif %}
             {% if doc.was_replaced_by_citizen %}
-                <span title="This document was replaced with a newer upload">(replaced)</span>
+                <br><span title="This document was replaced with a newer upload">(replaced)</span>
             {% endif %}
         </li>
     {% empty %}
@@ -23,11 +60,11 @@
     {% endfor %}
 </ul>
 
-<h3>Timeline</h3>
+<h2>Timeline</h2>
 <ul>
     {% for item in request_obj.timeline.all %}
         <li>
-            {{ item.created_at }} — {{ item.message }}
+            {{ item.created_at }} - {{ item.message }}
         </li>
     {% empty %}
         <li>No timeline yet.</li>

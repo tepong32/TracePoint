@@ -1,4 +1,20 @@
 # Changelog
+## [0.5.0] - 2026-04-21
+### ✨ Added
+feat(public-ui): complete citizen request lifecycle with guided UI flow
+
+- Aligned public-facing templates (track_request, secure_edit) for consistent UX
+- Added clear step indicators (Step 1–3) and current step visibility
+- Standardized status display using public_status_label across views
+- Improved document upload experience with instructions and feedback messages
+- Added completion feedback when request reaches under_review
+- Enhanced document list with status, remarks, and replacement indicators
+- Added conditional guidance for needs_attention and editable states
+- Preserved AJAX upload/delete logic with improved user feedback
+- Ensured end-to-end citizen flow: submit → upload → track → update
+
+This completes the citizen-side lifecycle MVP for TracePoint.
+
 ## [0.4.1] - 2026-04-12
 ### ✨ Added
 v0.4.1 patch: secure edit flow completion

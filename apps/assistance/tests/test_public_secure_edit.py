@@ -1,8 +1,9 @@
 import json
 import secrets
 import shutil
-import tempfile
+from pathlib import Path
 
+from django.db.models import Q
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TransactionTestCase, override_settings
 from django.urls import reverse
@@ -12,14 +13,18 @@ from apps.assistance.models import (
     CitizenProfile,
     CitizenRequest,
     RequestDocument,
+    RequestTimeline,
 )
 from apps.assistance.services.document_service import DocumentService
 from apps.assistance.services.request_service import RequestSubmissionService
 
-_TEST_MEDIA = tempfile.mkdtemp(prefix="tracepoint_public_tests_")
+_TEST_MEDIA_ROOT = Path(__file__).resolve().parents[3] / ".test_media"
+_TEST_MEDIA_ROOT.mkdir(exist_ok=True)
+_TEST_MEDIA = _TEST_MEDIA_ROOT / "public_secure_edit"
+_TEST_MEDIA.mkdir(exist_ok=True)
 
 
-@override_settings(MEDIA_ROOT=_TEST_MEDIA)
+@override_settings(MEDIA_ROOT=str(_TEST_MEDIA))
 class PublicSecureEditEndpointsTests(TransactionTestCase):
     @classmethod
     def tearDownClass(cls):
@@ -65,7 +70,53 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "locked")
 
+    def test_needs_attention_reopens_secure_edit_when_locked(self):
+        self.req.status = "needs_attention"
+        self.req.is_locked = True
+        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+        url = reverse(
+            "assistance:secure_edit",
+            kwargs={"secure_edit_token": self.req.secure_edit_token},
+        )
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Update your request")
+        self.assertNotContains(r, "locked")
+
+    def test_needs_attention_upload_returns_to_pending_if_incomplete(self):
+        self.req.status = "needs_attention"
+        self.req.is_locked = True
+        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+        url = reverse(
+            "assistance:upload_document_ajax",
+            kwargs={"secure_edit_token": self.req.secure_edit_token},
+        )
+        r = self.client.post(
+            url,
+            data={
+                "document_type": "birth_cert",
+                "file": self._pdf(),
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        data = json.loads(r.content.decode())
+        self.assertEqual(data["status"], "success")
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.status, "pending")
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="status_change",
+            )
+            .filter(
+                Q(message__contains="old_status=needs_attention")
+                & Q(message__contains="new_status=pending")
+            ).exists()
+        )
+
     def test_upload_ajax_success_shape(self):
+        self.req.status = "under_review"
+        self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
             kwargs={"secure_edit_token": self.req.secure_edit_token},
@@ -87,6 +138,8 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
                 request=self.req, document_type="birth_cert", is_removed=False
             ).exists()
         )
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.status, "pending")
 
     def test_upload_ajax_locked(self):
         self.req.is_locked = True
