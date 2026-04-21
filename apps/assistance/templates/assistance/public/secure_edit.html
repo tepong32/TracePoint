@@ -5,7 +5,7 @@
     <p><strong>Program:</strong> {{ request_obj.program.name }}</p>
     <p>
         <strong>Current status:</strong>
-        {% firstof public_status_label request_obj.status|title %}
+        {{ public_status_label }}
     </p>
     <p><strong>Current step:</strong> Step 2: Upload documents</p>
 </div>
@@ -42,7 +42,7 @@
             {% if doc.file %}
                 <a href="{{ doc.file.url }}">View file</a><br>
             {% endif %}
-            <span>Status: {{ doc.status|title }}</span>
+            <span>Status: {{ doc.get_status_display }}</span>
             {% if doc.remarks %}
                 <br><span>Remarks: {{ doc.remarks }}</span>
             {% endif %}

@@ -36,7 +36,7 @@
 <h2>Progress</h2>
 <ol>
     <li>{% if progress_step == 1 %}<strong>Step 1: Request submitted</strong>{% else %}Step 1: Request submitted{% endif %}</li>
-    <li>{% if progress_step == 2 %}<strong>Step 2: Upload documents</strong>{% else %}Step 2: Upload documents{% endif %}</li>
+    <li>{% if progress_step >= 2 %}<strong>Step 2: Upload documents</strong>{% else %}Step 2: Upload documents{% endif %}</li>
     <li>{% if progress_step >= 3 %}<strong>Step 3: Review and updates</strong>{% else %}Step 3: Review and updates{% endif %}</li>
 </ol>
 
@@ -47,7 +47,7 @@
     {% for doc in documents %}
         <li style="margin-bottom: 0.75rem;">
             <strong>{{ doc.get_document_type_display }}</strong><br>
-            <span>Status: {{ doc.status|title }}</span>
+            <span>Status: {{ doc.get_status_display }}</span>
             {% if doc.remarks %}
                 <br><span>Remarks: {{ doc.remarks }}</span>
             {% endif %}
