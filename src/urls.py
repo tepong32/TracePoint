@@ -25,6 +25,10 @@ urlpatterns = [
         include("apps.assistance.urls.public")
     ),
     path(
+        "assistance/staff/",
+        include("apps.assistance.urls.staff")
+    ),
+    path(
         "ckeditor5/",
         include("django_ckeditor_5.urls")
     ),

@@ -47,6 +47,13 @@ class CitizenProfile(models.Model):
 
 
 class CitizenRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("under_review", "Under Review"),
+        ("approved", "Approved"),
+        ("denied", "Denied"),
+    ]
+
     tracking_code = models.CharField(max_length=24, unique=True, db_index=True)
     secure_edit_token = models.CharField(max_length=64, unique=True)
 
@@ -68,7 +75,7 @@ class CitizenRequest(models.Model):
         blank=True
     )
 
-    status = models.CharField(max_length=20, default="submitted")
+    status = models.CharField(max_length=20, default="pending")
     remarks = models.TextField(blank=True)
     summary = models.TextField(blank=True)
 
@@ -95,6 +102,15 @@ class RequestDocument(models.Model):
         ("grade_card", "Report Card / Grade Card"),
         ("cert_of_enrollment", "Certificate of Enrollment/Registration"),
         ("others", "Other Supporting Document"),
+    ]
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("approved", "Approved"),
+        ("clearer_copy", "Needs Clearer Copy"),
+        ("wrong_file", "Wrong File"),
+        ("incomplete", "Incomplete"),
+        ("missing_stamp", "Missing Stamp"),
+        ("expired", "Expired"),
     ]
 
     request = models.ForeignKey(
@@ -155,5 +171,3 @@ class RequestTimeline(models.Model):
 
     def __str__(self):
     	return f"{self.request.tracking_code} - {self.event_type}"
-
-

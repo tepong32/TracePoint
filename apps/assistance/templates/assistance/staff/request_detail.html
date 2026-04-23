@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Request {{ request_obj.tracking_code }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; color: #222; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+        .panel { border: 1px solid #ddd; border-radius: 4px; padding: 12px; }
+        .panel h2 { margin-top: 0; }
+        .row { display: grid; grid-template-columns: 160px 1fr; margin-bottom: 8px; }
+        .row label { font-weight: 600; }
+        textarea { width: 100%; min-height: 80px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e4e4e4; padding: 8px; vertical-align: top; }
+        th { background: #f6f6f6; }
+        .doc-approved { background: #e7f6ea; }
+        .doc-pending { background: #fff8e1; }
+        .doc-issue { background: #fdecea; }
+        .timeline-item { border-bottom: 1px solid #ececec; padding: 8px 0; }
+        .feedback { margin: 10px 0; padding: 8px; border-radius: 4px; display: none; }
+        .ok { background: #e7f6ea; color: #245f34; border: 1px solid #c5e8cc; }
+        .err { background: #fdecea; color: #8a1a1a; border: 1px solid #f7c8c8; }
+        .locked { background: #fdf2d0; border: 1px solid #f2dc98; padding: 10px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    <p><a href="{% url 'assistance_staff:dashboard' %}">← Back to dashboard</a></p>
+    <h1>Request {{ request_obj.tracking_code }}</h1>
+
+    {% if is_locked %}
+        <div class="locked">This request is locked (approved/claimable/claimed/closed). Editing is disabled.</div>
+    {% endif %}
+    {% if has_needs_attention %}
+        <div class="locked">Needs Attention auto-flag: one or more documents are not approved.</div>
+    {% endif %}
+
+    <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+    <div class="grid">
+        <section class="panel">
+            <h2>A. Request Summary</h2>
+            <div class="row"><label>Name</label><div>{{ request_obj.full_name }}</div></div>
+            <div class="row"><label>Email</label><div>{{ request_obj.email }}</div></div>
+            <div class="row"><label>Phone</label><div>{{ request_obj.phone }}</div></div>
+            <div class="row"><label>Assistance Type</label><div>{{ request_obj.program.name }}</div></div>
+            <div class="row">
+                <label for="request-status">Status</label>
+                <div>
+                    <select id="request-status" {% if is_locked %}disabled{% endif %}>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if request_obj.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <label for="request-remarks">Remarks</label>
+                <div><textarea id="request-remarks" {% if is_locked %}disabled{% endif %}>{{ request_obj.remarks }}</textarea></div>
+            </div>
+            <button id="save-request" {% if is_locked %}disabled{% endif %}>Save Request Update</button>
+        </section>
+
+        <section class="panel">
+            <h2>B. Document Review Panel</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Required Document</th>
+                        <th>File</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                        <tr class="{% if doc.status == 'approved' %}doc-approved{% elif doc.status == 'pending' %}doc-pending{% else %}doc-issue{% endif %}">
+                            <td>{{ doc.get_document_type_display }}</td>
+                            <td><a href="{{ doc.file.url }}" target="_blank" rel="noopener">Preview / Download</a></td>
+                            <td>
+                                <select id="doc-status-{{ doc.id }}" {% if is_locked %}disabled{% endif %}>
+                                    {% for value, label in document_status_choices %}
+                                        <option value="{{ value }}" {% if doc.status == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><textarea id="doc-remarks-{{ doc.id }}" {% if is_locked %}disabled{% endif %}>{{ doc.remarks }}</textarea></td>
+                            <td>
+                                <button class="js-doc-update" data-document-id="{{ doc.id }}" {% if is_locked %}disabled{% endif %}>Update</button>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5">No uploaded documents yet. This request has missing documents.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <h2>C. Timeline / Logs</h2>
+            {% for item in timeline_items %}
+                <div class="timeline-item">
+                    <strong>{{ item.created_at|date:"M d, Y H:i" }}</strong> — {{ item.message }}
+                    <div>By: {% if item.created_by %}{{ item.created_by }}{% else %}System{% endif %}</div>
+                </div>
+            {% empty %}
+                <p>No timeline entries yet.</p>
+            {% endfor %}
+        </section>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            return parts.length === 2 ? parts.pop().split(';').shift() : '';
+        }
+        const feedbackEl = document.getElementById('feedback');
+        function showFeedback(message, ok = true) {
+            feedbackEl.className = `feedback ${ok ? 'ok' : 'err'}`;
+            feedbackEl.textContent = message;
+            feedbackEl.style.display = 'block';
+            setTimeout(() => { feedbackEl.style.display = 'none'; }, 3500);
+        }
+
+        async function postForm(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(payload),
+            });
+            return response.json();
+        }
+
+        document.getElementById('save-request').addEventListener('click', async () => {
+            const status = document.getElementById('request-status').value;
+            if (status === 'approved' || status === 'denied') {
+                const confirmed = window.confirm(`Confirm ${status} action?`);
+                if (!confirmed) return;
+            }
+
+            const remarks = document.getElementById('request-remarks').value;
+            const data = await postForm('/assistance/staff/request/{{ request_obj.id }}/update/ajax/', { status, remarks });
+            if (data.status !== 'success') {
+                showFeedback(data.message || 'Unable to update request.', false);
+                return;
+            }
+            showFeedback(data.message || 'Request updated successfully.');
+            window.location.reload();
+        });
+
+        document.querySelectorAll('.js-doc-update').forEach((btn) => {
+            btn.addEventListener('click', async (event) => {
+                const docId = event.target.dataset.documentId;
+                const status = document.getElementById(`doc-status-${docId}`).value;
+                const remarks = document.getElementById(`doc-remarks-${docId}`).value;
+                const data = await postForm(`/assistance/staff/document/${docId}/update/ajax/`, { status, remarks });
+                if (data.status !== 'success') {
+                    showFeedback(data.message || 'Unable to update document.', false);
+                    return;
+                }
+                showFeedback(data.message || 'Document updated.');
+                window.location.reload();
+            });
+        });
+    </script>
+</body>
+</html>
