@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TracePoint Staff Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 16px; color: #222; }
+        h1, h2 { margin-bottom: 8px; }
+        .stats { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .stat-card { border: 1px solid #d8d8d8; border-radius: 4px; padding: 10px; background: #fafafa; }
+        .stat-card strong { display: block; font-size: 22px; }
+        .filters { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; margin-bottom: 14px; }
+        .filters label { display: block; font-size: 12px; margin-bottom: 4px; }
+        .filters select, .filters input { width: 100%; padding: 6px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e4e4e4; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background: #f5f5f5; }
+        .row-needs-attention { background: #fff8e1; }
+        .row-missing-docs { background: #ffebee; }
+        .status-pill { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .status-submitted, .status-awaiting_documents, .status-pending { background: #f3f4f6; color: #555; }
+        .status-under_review { background: #e8f1ff; color: #124fa3; }
+        .status-approved, .status-claimable, .status-claimed, .status-closed { background: #e7f6ea; color: #256837; }
+        .status-needs_attention, .status-denied { background: #fdecea; color: #ab1f1f; }
+        .flag { display: inline-block; padding: 2px 6px; margin-right: 4px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .flag-missing { background: #fdecea; color: #8a1a1a; }
+        .flag-attention { background: #fff4ce; color: #6a4b00; }
+        .feedback { margin: 10px 0; padding: 8px; border-radius: 4px; display: none; }
+        .ok { background: #e7f6ea; color: #245f34; border: 1px solid #c5e8cc; }
+        .err { background: #fdecea; color: #8a1a1a; border: 1px solid #f7c8c8; }
+    </style>
+</head>
+<body>
+    <h1>Staff Dashboard</h1>
+    <p>Focus on requests that are blocked by missing or problematic documents.</p>
+
+    <section class="stats" aria-label="Summary Statistics">
+        <div class="stat-card"><span>Total Pending</span><strong>{{ summary_stats.pending_total }}</strong></div>
+        <div class="stat-card"><span>Under Review</span><strong>{{ summary_stats.under_review_total }}</strong></div>
+        <div class="stat-card"><span>Approved Today</span><strong>{{ summary_stats.approved_today }}</strong></div>
+    </section>
+
+    <form method="get" class="filters" aria-label="Request Filters">
+        <div>
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="">All</option>
+                {% for status_value, status_label in status_choices %}
+                    <option value="{{ status_value }}" {% if filters.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="program">Assistance Type</label>
+            <select id="program" name="program">
+                <option value="">All</option>
+                {% for slug, name in assistance_types %}
+                    <option value="{{ slug }}" {% if filters.program == slug %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="start_date">From</label>
+            <input id="start_date" name="start_date" type="date" value="{{ filters.start_date }}" />
+        </div>
+        <div>
+            <label for="end_date">To</label>
+            <input id="end_date" name="end_date" type="date" value="{{ filters.end_date }}" />
+        </div>
+        <div>
+            <label>&nbsp;</label>
+            <button type="submit">Apply Filters</button>
+        </div>
+    </form>
+
+    <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+    <table aria-label="Assistance Requests">
+        <thead>
+            <tr>
+                <th>Reference Code</th>
+                <th>Name</th>
+                <th>Assistance Type</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th>Flags</th>
+                <th>Quick Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+                <tr class="{% if req.has_missing_documents %}row-missing-docs{% elif req.has_doc_issues or req.status == 'needs_attention' %}row-needs-attention{% endif %}">
+                    <td>{{ req.tracking_code }}</td>
+                    <td>{{ req.full_name }}</td>
+                    <td>{{ req.program.name }}</td>
+                    <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                    <td>{{ req.submitted_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        {% if req.has_missing_documents %}<span class="flag flag-missing">Missing documents</span>{% endif %}
+                        {% if req.has_doc_issues or req.status == 'needs_attention' %}<span class="flag flag-attention">Needs attention</span>{% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a><br />
+                        <label for="status-{{ req.id }}">Change status</label>
+                        <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status" {% if req.is_locked %}disabled{% endif %}>
+                            {% for status_value, status_label in status_choices %}
+                                <option value="{{ status_value }}" {% if req.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7">No requests match current filters.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            return parts.length === 2 ? parts.pop().split(';').shift() : '';
+        }
+
+        const feedbackEl = document.getElementById('feedback');
+        function showFeedback(message, ok = true) {
+            feedbackEl.className = `feedback ${ok ? 'ok' : 'err'}`;
+            feedbackEl.textContent = message;
+            feedbackEl.style.display = 'block';
+            setTimeout(() => { feedbackEl.style.display = 'none'; }, 3500);
+        }
+
+        document.querySelectorAll('.js-inline-status').forEach((selectEl) => {
+            const initialValue = selectEl.value;
+            selectEl.addEventListener('change', async (event) => {
+                const requestId = event.target.dataset.requestId;
+                const newStatus = event.target.value;
+                if (newStatus === 'approved' || newStatus === 'denied') {
+                    const proceed = window.confirm(`Confirm changing status to ${newStatus}?`);
+                    if (!proceed) {
+                        event.target.value = initialValue;
+                        return;
+                    }
+                }
+
+                const body = new URLSearchParams({ status: newStatus });
+                const response = await fetch(`/assistance/staff/request/${requestId}/status/ajax/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body,
+                });
+                const data = await response.json();
+                if (data.status !== 'success') {
+                    showFeedback(data.message || 'Unable to update status.', false);
+                    event.target.value = initialValue;
+                    return;
+                }
+                showFeedback(data.message || 'Status updated.');
+                window.location.reload();
+            });
+        });
+    </script>
+</body>
+</html>
