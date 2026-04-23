@@ -40,11 +40,13 @@ Valid statuses (v0.5 lifecycle model): - submitted -
 awaiting_documents - under_review - needs_attention - approved -
 claimable - claimed - closed
 
-Rules: - Requests MUST start at `submitted` - Status progression MUST
-follow defined lifecycle flow - Status regression is NOT allowed -
-Approved, claimable, claimed, and closed requests are LOCKED - Locked
-requests MUST block document uploads and edits - Lifecycle logic MUST be
-centralized in services, not duplicated in views
+Rules:
+-   Requests MUST start at `submitted`
+-   Status progression MUST follow defined lifecycle flow
+-   Status regression is NOT allowed
+-   Approved, claimable, claimed, and closed requests are LOCKED
+-   Locked requests MUST block document uploads and edits
+-   Lifecycle logic MUST be centralized in services, not duplicated in views
 
 ### Document Review Contract
 
@@ -52,10 +54,12 @@ Each RequestDocument has an independent review state: - pending -
 approved - clearer_copy - wrong_file - incomplete - missing_stamp -
 expired
 
-Rules: - Only ONE active document per `(request, document_type)` -
-Re-upload replaces the existing document - Soft-delete hides document
-but preserves storage - Re-upload after soft-delete revives the document
-entry - Locked requests MUST block document changes
+Rules:
+-    Only ONE active document per `(request, document_type)`
+-    Re-upload replaces the existing document
+-    Soft-delete hides document but preserves storage
+-    Re-upload after soft-delete revives the document entry
+-    Locked requests MUST block document changes
 
 ### Audit Logging Contract
 
@@ -93,14 +97,14 @@ Notifications app scaffolded
 
 ### Repository Layout
 
-manage.py: entrypoint (dev/prod switch via DJANGO_ENV)
-src/: project config
-apps/assistance/: core domain app
-apps/notifications/: future notification adapters
-services/: REQUIRED location for business logic
-views/public.py: citizen flows
-views/staff.py: staff workflows (must remain protected)
-urls/public.py, urls/staff.py, urls/ajax.py: route separation
+-    manage.py: entrypoint (dev/prod switch via DJANGO_ENV)
+-    src/: project config
+-    apps/assistance/: core domain app
+-    apps/notifications/: future notification adapters
+-    services/: REQUIRED location for business logic
+-    views/public.py: citizen flows
+-    views/staff.py: staff workflows (must remain protected)
+-    urls/public.py, urls/staff.py, urls/ajax.py: route separation
 
 ### Architecture Conventions
 
