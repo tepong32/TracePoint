@@ -7,7 +7,7 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 16px; color: #222; }
         h1, h2 { margin-bottom: 8px; }
-        .stats { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .stats { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
         .stat-card { border: 1px solid #d8d8d8; border-radius: 4px; padding: 10px; background: #fafafa; }
         .stat-card strong { display: block; font-size: 22px; }
         .filters { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 8px; margin-bottom: 14px; }
@@ -29,17 +29,28 @@
         .feedback { margin: 10px 0; padding: 8px; border-radius: 4px; display: none; }
         .ok { background: #e7f6ea; color: #245f34; border: 1px solid #c5e8cc; }
         .err { background: #fdecea; color: #8a1a1a; border: 1px solid #f7c8c8; }
+        .context-note { color: #555; margin-top: 0; }
+        .queues { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+        .queue-tab { border: 1px solid #d8d8d8; border-radius: 4px; padding: 6px 10px; color: #222; text-decoration: none; background: #fff; }
+        .queue-tab-active { background: #222; color: #fff; border-color: #222; }
     </style>
 </head>
 <body>
     <h1>Staff Dashboard</h1>
-    <p>Focus on requests that are blocked by missing or problematic documents.</p>
+    <p class="context-note">Queue context is shown in the table flags; warning color is reserved for requests blocked by missing or problematic documents.</p>
 
     <section class="stats" aria-label="Summary Statistics">
-        <div class="stat-card"><span>Total Pending</span><strong>{{ summary_stats.pending_total }}</strong></div>
+        <div class="stat-card"><span>Awaiting Documents</span><strong>{{ summary_stats.awaiting_documents_total }}</strong></div>
         <div class="stat-card"><span>Under Review</span><strong>{{ summary_stats.under_review_total }}</strong></div>
+        <div class="stat-card"><span>Ready to Claim</span><strong>{{ summary_stats.claimable_total }}</strong></div>
         <div class="stat-card"><span>Approved Today</span><strong>{{ summary_stats.approved_today }}</strong></div>
     </section>
+
+    <nav class="queues" aria-label="Role queues">
+        {% for tab in queue_tabs %}
+            <a class="queue-tab {% if tab.active %}queue-tab-active{% endif %}" href="?queue={{ tab.key }}">{{ tab.label }}</a>
+        {% endfor %}
+    </nav>
 
     <form method="get" class="filters" aria-label="Request Filters">
         <div>
@@ -103,9 +114,11 @@
                     <td>
                         <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a><br />
                         <label for="status-{{ req.id }}">Change status</label>
-                        <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status" {% if req.is_locked %}disabled{% endif %}>
+                        <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status">
                             {% for status_value, status_label in status_choices %}
-                                <option value="{{ status_value }}" {% if req.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                {% if req.status == status_value or status_value in req.allowed_next_statuses %}
+                                    <option value="{{ status_value }}" {% if req.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                {% endif %}
                             {% endfor %}
                         </select>
                     </td>
@@ -136,7 +149,7 @@
             selectEl.addEventListener('change', async (event) => {
                 const requestId = event.target.dataset.requestId;
                 const newStatus = event.target.value;
-                if (newStatus === 'approved' || newStatus === 'denied') {
+                if (newStatus === 'approved' || newStatus === 'claimable' || newStatus === 'claimed' || newStatus === 'closed') {
                     const proceed = window.confirm(`Confirm changing status to ${newStatus}?`);
                     if (!proceed) {
                         event.target.value = initialValue;

@@ -23,17 +23,28 @@
         .ok { background: #e7f6ea; color: #245f34; border: 1px solid #c5e8cc; }
         .err { background: #fdecea; color: #8a1a1a; border: 1px solid #f7c8c8; }
         .locked { background: #fdf2d0; border: 1px solid #f2dc98; padding: 10px; margin-bottom: 12px; }
+        .attention { background: #fff8e1; border: 1px solid #f2dc98; padding: 10px; margin-bottom: 12px; }
+        .context-strip { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+        .context-item { border: 1px solid #e4e4e4; border-radius: 4px; padding: 8px; background: #fafafa; }
+        .context-item strong { display: block; font-size: 18px; }
     </style>
 </head>
 <body>
-    <p><a href="{% url 'assistance_staff:dashboard' %}">← Back to dashboard</a></p>
+    <p><a href="{% url 'assistance_staff:dashboard' %}">&larr; Back to dashboard</a></p>
     <h1>Request {{ request_obj.tracking_code }}</h1>
+
+    <section class="context-strip" aria-label="Document review context">
+        <div class="context-item"><span>Total Documents</span><strong>{{ document_review_summary.total }}</strong></div>
+        <div class="context-item"><span>Approved</span><strong>{{ document_review_summary.approved }}</strong></div>
+        <div class="context-item"><span>Pending</span><strong>{{ document_review_summary.pending }}</strong></div>
+        <div class="context-item"><span>Needs Fix</span><strong>{{ document_review_summary.issues }}</strong></div>
+    </section>
 
     {% if is_locked %}
         <div class="locked">This request is locked (approved/claimable/claimed/closed). Editing is disabled.</div>
     {% endif %}
     {% if has_needs_attention %}
-        <div class="locked">Needs Attention auto-flag: one or more documents are not approved.</div>
+        <div class="attention">Needs Attention: missing documents or reviewed documents with issues should be resolved before approval.</div>
     {% endif %}
 
     <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
@@ -48,9 +59,11 @@
             <div class="row">
                 <label for="request-status">Status</label>
                 <div>
-                    <select id="request-status" {% if is_locked %}disabled{% endif %}>
+                    <select id="request-status">
                         {% for value, label in status_choices %}
-                            <option value="{{ value }}" {% if request_obj.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% if request_obj.status == value or value in allowed_next_statuses %}
+                                <option value="{{ value }}" {% if request_obj.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endif %}
                         {% endfor %}
                     </select>
                 </div>
@@ -59,7 +72,7 @@
                 <label for="request-remarks">Remarks</label>
                 <div><textarea id="request-remarks" {% if is_locked %}disabled{% endif %}>{{ request_obj.remarks }}</textarea></div>
             </div>
-            <button id="save-request" {% if is_locked %}disabled{% endif %}>Save Request Update</button>
+            <button id="save-request">Save Request Update</button>
         </section>
 
         <section class="panel">
@@ -80,15 +93,15 @@
                             <td>{{ doc.get_document_type_display }}</td>
                             <td><a href="{{ doc.file.url }}" target="_blank" rel="noopener">Preview / Download</a></td>
                             <td>
-                                <select id="doc-status-{{ doc.id }}" {% if is_locked %}disabled{% endif %}>
+                                <select id="doc-status-{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>
                                     {% for value, label in document_status_choices %}
                                         <option value="{{ value }}" {% if doc.status == value %}selected{% endif %}>{{ label }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
-                            <td><textarea id="doc-remarks-{{ doc.id }}" {% if is_locked %}disabled{% endif %}>{{ doc.remarks }}</textarea></td>
+                            <td><textarea id="doc-remarks-{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>{{ doc.remarks }}</textarea></td>
                             <td>
-                                <button class="js-doc-update" data-document-id="{{ doc.id }}" {% if is_locked %}disabled{% endif %}>Update</button>
+                                <button class="js-doc-update" data-document-id="{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>Update</button>
                             </td>
                         </tr>
                     {% empty %}
@@ -102,7 +115,7 @@
             <h2>C. Timeline / Logs</h2>
             {% for item in timeline_items %}
                 <div class="timeline-item">
-                    <strong>{{ item.created_at|date:"M d, Y H:i" }}</strong> — {{ item.message }}
+                    <strong>{{ item.created_at|date:"M d, Y H:i" }}</strong> - {{ item.message }}
                     <div>By: {% if item.created_by %}{{ item.created_by }}{% else %}System{% endif %}</div>
                 </div>
             {% empty %}
@@ -140,7 +153,7 @@
 
         document.getElementById('save-request').addEventListener('click', async () => {
             const status = document.getElementById('request-status').value;
-            if (status === 'approved' || status === 'denied') {
+            if (status === 'approved' || status === 'claimable' || status === 'claimed' || status === 'closed') {
                 const confirmed = window.confirm(`Confirm ${status} action?`);
                 if (!confirmed) return;
             }

@@ -72,8 +72,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
 
     def test_needs_attention_reopens_secure_edit_when_locked(self):
         self.req.status = "needs_attention"
-        self.req.is_locked = True
-        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+        self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:secure_edit",
             kwargs={"secure_edit_token": self.req.secure_edit_token},
@@ -83,10 +82,9 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertContains(r, "Update your request")
         self.assertNotContains(r, "locked")
 
-    def test_needs_attention_upload_returns_to_pending_if_incomplete(self):
+    def test_needs_attention_upload_returns_to_awaiting_documents_if_incomplete(self):
         self.req.status = "needs_attention"
-        self.req.is_locked = True
-        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+        self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
             kwargs={"secure_edit_token": self.req.secure_edit_token},
@@ -102,7 +100,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         data = json.loads(r.content.decode())
         self.assertEqual(data["status"], "success")
         self.req.refresh_from_db()
-        self.assertEqual(self.req.status, "pending")
+        self.assertEqual(self.req.status, "awaiting_documents")
         self.assertTrue(
             RequestTimeline.objects.filter(
                 request=self.req,
@@ -110,12 +108,12 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
             )
             .filter(
                 Q(message__contains="old_status=needs_attention")
-                & Q(message__contains="new_status=pending")
+                & Q(message__contains="new_status=awaiting_documents")
             ).exists()
         )
 
     def test_upload_ajax_success_shape(self):
-        self.req.status = "under_review"
+        self.req.status = "awaiting_documents"
         self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
@@ -139,7 +137,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
             ).exists()
         )
         self.req.refresh_from_db()
-        self.assertEqual(self.req.status, "pending")
+        self.assertEqual(self.req.status, "awaiting_documents")
 
     def test_upload_ajax_locked(self):
         self.req.is_locked = True

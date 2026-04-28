@@ -3,6 +3,8 @@ from django.conf import settings
 from django.db.models import Q
 from django_ckeditor_5.fields import CKEditor5Field
 
+from apps.assistance.services.lifecycle import REQUEST_STATUS_CHOICES
+
 
 class AssistanceProgram(models.Model):
     name = models.CharField(max_length=255)
@@ -47,12 +49,7 @@ class CitizenProfile(models.Model):
 
 
 class CitizenRequest(models.Model):
-    STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("under_review", "Under Review"),
-        ("approved", "Approved"),
-        ("denied", "Denied"),
-    ]
+    STATUS_CHOICES = REQUEST_STATUS_CHOICES
 
     tracking_code = models.CharField(max_length=24, unique=True, db_index=True)
     secure_edit_token = models.CharField(max_length=64, unique=True)
@@ -75,7 +72,11 @@ class CitizenRequest(models.Model):
         blank=True
     )
 
-    status = models.CharField(max_length=20, default="pending")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="submitted",
+    )
     remarks = models.TextField(blank=True)
     summary = models.TextField(blank=True)
 

@@ -16,6 +16,7 @@ venv/
 # Django local/runtime files
 db.sqlite3
 media/
+tracepoint/
 staticfiles/
 .test_media/
 

@@ -1,46 +1,47 @@
+<style>
+    body { font-family: Arial, sans-serif; margin: 16px; color: #222; }
+    .summary { border: 1px solid #d9dde3; border-radius: 6px; padding: 14px; margin-bottom: 14px; background: #fbfcfd; }
+    .summary dl { display: grid; grid-template-columns: 150px 1fr; gap: 8px 12px; margin: 0; }
+    .summary dt { font-weight: 700; color: #4b5563; }
+    .summary dd { margin: 0; }
+    .callout { border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; }
+    .callout strong { display: block; margin-bottom: 4px; }
+    .callout-info { background: #eef5ff; border: 1px solid #9bbfe8; color: #163b5c; }
+    .callout-warning { background: #fff7e6; border: 1px solid #e0a100; color: #5f4300; }
+    .callout-locked { background: #f4f4f5; border: 1px solid #c7c7cc; color: #3f3f46; }
+    .progress { padding-left: 1.25rem; }
+    .progress li { margin-bottom: 6px; }
+    .muted { color: #5f6368; }
+</style>
+
 <h1>Request Tracking</h1>
 
-<div style="border: 1px solid #ddd; padding: 1rem; margin-bottom: 1rem;">
-    <p><strong>Tracking code:</strong> {{ request_obj.tracking_code }}</p>
-    <p><strong>Program:</strong> {{ request_obj.program.name }}</p>
-    <p><strong>Status:</strong> {{ public_status_label }}</p>
-    <p><strong>Progress:</strong> Step {{ progress_step }}</p>
-    <p>
-        <strong>Current step:</strong>
-        {% if progress_step == 1 %}
-            Step 1: Request submitted
-        {% elif progress_step == 2 %}
-            Step 2: Upload documents
-        {% else %}
-            Step 3: Review and updates
-        {% endif %}
-    </p>
-    <p><strong>Submitted:</strong> {{ request_obj.submitted_at }}</p>
-</div>
+<section class="summary" aria-label="Request summary">
+    <dl>
+        <dt>Tracking code</dt><dd>{{ request_obj.tracking_code }}</dd>
+        <dt>Program</dt><dd>{{ request_obj.program.name }}</dd>
+        <dt>Status</dt><dd>{{ public_status_label }}</dd>
+        <dt>Submitted</dt><dd>{{ request_obj.submitted_at }}</dd>
+    </dl>
+</section>
 
-{% if not request_obj.is_locked or request_obj.status == "needs_attention" %}
-    <div style="background: #eef5ff; border: 1px solid #7aa7d9; color: #163b5c; padding: 1rem; margin-bottom: 1rem;">
-        You may upload or update documents.
-    </div>
-    <p><a href="{% url 'assistance:secure_edit' secure_edit_token=request_obj.secure_edit_token %}">Go to Step 2: Upload Supporting Documents</a></p>
-{% endif %}
-
-{% if request_obj.status == "needs_attention" %}
-    <div style="background: #fff7e6; border: 1px solid #e0a100; color: #5f4300; padding: 1rem; margin-bottom: 1rem;">
-        Some documents need attention. Please return to edit page.
+{% if action_callout %}
+    <div class="callout callout-{{ action_callout.tone }}">
+        <strong>{{ action_callout.title }}</strong>
+        {{ action_callout.message }}
     </div>
 {% endif %}
 
-<hr>
+{% if can_update_documents %}
+    <p><a href="{% url 'assistance:secure_edit' secure_edit_token=request_obj.secure_edit_token %}">Upload or update supporting documents</a></p>
+{% endif %}
 
 <h2>Progress</h2>
-<ol>
-    <li>{% if progress_step == 1 %}<strong>Step 1: Request submitted</strong>{% else %}Step 1: Request submitted{% endif %}</li>
-    <li>{% if progress_step >= 2 %}<strong>Step 2: Upload documents</strong>{% else %}Step 2: Upload documents{% endif %}</li>
-    <li>{% if progress_step >= 3 %}<strong>Step 3: Review and updates</strong>{% else %}Step 3: Review and updates{% endif %}</li>
+<ol class="progress">
+    <li>{% if progress_step == 1 %}<strong>Request submitted</strong>{% else %}Request submitted{% endif %}</li>
+    <li>{% if progress_step >= 2 %}<strong>Supporting documents</strong>{% else %}Supporting documents{% endif %}</li>
+    <li>{% if progress_step >= 3 %}<strong>Review and updates</strong>{% else %}Review and updates{% endif %}</li>
 </ol>
-
-<p><strong>Current public status:</strong> {{ public_status_label }}</p>
 
 <h2>Documents</h2>
 <ul>
@@ -52,7 +53,7 @@
                 <br><span>Remarks: {{ doc.remarks }}</span>
             {% endif %}
             {% if doc.was_replaced_by_citizen %}
-                <br><span title="This document was replaced with a newer upload">(replaced)</span>
+                <br><span class="muted" title="This document was replaced with a newer upload">Replaced with a newer upload</span>
             {% endif %}
         </li>
     {% empty %}

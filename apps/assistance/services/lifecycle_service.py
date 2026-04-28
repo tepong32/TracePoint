@@ -1,5 +1,19 @@
 from apps.assistance.models.models import CitizenRequest, RequestTimeline
 from apps.assistance.services.evaluator import evaluate_request_completeness
+from apps.assistance.services.lifecycle import (
+    can_transition_status,
+    is_locked_status,
+)
+from apps.assistance.services.notifications import (
+    dispatch_notification,
+    prepare_status_notification,
+)
+
+
+class LifecycleTransitionError(Exception):
+    """Raised when a request lifecycle transition violates v0.5 policy."""
+
+    pass
 
 
 def _create_status_change_log(
@@ -37,29 +51,83 @@ def _create_status_change_log(
     )
 
 
-def apply_auto_status_transition(request_obj: CitizenRequest) -> None:
+def transition_request_status(
+    request_obj: CitizenRequest,
+    *,
+    new_status: str,
+    actor=None,
+    message: str | None = None,
+) -> None:
+    """Transition a request status through the central lifecycle policy."""
+    old_status = request_obj.status
+    if old_status == new_status:
+        return
+
+    if not can_transition_status(old_status, new_status):
+        raise LifecycleTransitionError(
+            f"Invalid status transition: {old_status} to {new_status}."
+        )
+
+    request_obj.status = new_status
+    request_obj.is_locked = is_locked_status(new_status)
+    request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+    if message:
+        RequestTimeline.objects.create(
+            request=request_obj,
+            event_type="status_change",
+            message=message,
+            created_by=actor if getattr(actor, "is_authenticated", False) else None,
+        )
+    else:
+        _create_status_change_log(
+            request_obj=request_obj,
+            old_status=old_status,
+            new_status=new_status,
+        )
+
+    dispatch_notification(
+        prepare_status_notification(request_obj, status=new_status),
+        citizen_request=request_obj,
+    )
+
+
+def apply_auto_status_transition(
+    request_obj: CitizenRequest,
+    *,
+    previous_status_for_audit: str | None = None,
+) -> None:
     """Auto-transition request status based on current document completeness."""
-    allowed_current_statuses = {"pending", "under_review", "needs_attention"}
+    allowed_current_statuses = {
+        "submitted",
+        "awaiting_documents",
+        "under_review",
+        "needs_attention",
+    }
     if request_obj.status not in allowed_current_statuses:
         return
 
     result = evaluate_request_completeness(request_obj)
-    old_status = request_obj.status
+    old_status = previous_status_for_audit or request_obj.status
 
     if result["missing_documents"]:
-        new_status = "pending"
+        new_status = "awaiting_documents"
     elif result["has_issues"]:
         new_status = "needs_attention"
     else:
         new_status = "under_review"
 
-    if new_status == old_status:
+    if new_status == request_obj.status and new_status == old_status:
         return
 
     request_obj.status = new_status
-    request_obj.save(update_fields=["status", "updated_at"])
+    request_obj.is_locked = is_locked_status(new_status)
+    request_obj.save(update_fields=["status", "is_locked", "updated_at"])
     _create_status_change_log(
         request_obj=request_obj,
         old_status=old_status,
         new_status=new_status,
+    )
+    dispatch_notification(
+        prepare_status_notification(request_obj, status=new_status),
+        citizen_request=request_obj,
     )

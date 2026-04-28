@@ -116,10 +116,9 @@ class DocumentServiceTests(TransactionTestCase):
                 uploaded_file=self._pdf("x.pdf"),
             )
 
-    def test_needs_attention_locked_request_accepts_upload_and_returns_to_review(self):
+    def test_needs_attention_request_accepts_upload_and_returns_to_review(self):
         self.req.status = "needs_attention"
-        self.req.is_locked = True
-        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+        self.req.save(update_fields=["status", "updated_at"])
 
         DocumentService.upload_or_replace(
             citizen_request=self.req,
@@ -129,7 +128,7 @@ class DocumentServiceTests(TransactionTestCase):
 
         self.req.refresh_from_db()
         self.assertEqual(self.req.status, "under_review")
-        self.assertTrue(self.req.is_locked)
+        self.assertFalse(self.req.is_locked)
         self.assertTrue(
             RequestTimeline.objects.filter(
                 request=self.req,

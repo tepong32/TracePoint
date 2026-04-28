@@ -15,6 +15,38 @@ REQUEST_LIFECYCLE = {
 }
 
 
+REQUEST_STATUS_CHOICES = [
+    ("submitted", "Submitted"),
+    ("awaiting_documents", "Awaiting Documents"),
+    ("under_review", "Under Review"),
+    ("needs_attention", "Needs Attention"),
+    ("approved", "Approved"),
+    ("claimable", "Ready to Claim"),
+    ("claimed", "Claimed"),
+    ("closed", "Closed"),
+]
+
+
+LOCKED_REQUEST_STATUSES = {
+    "approved",
+    "claimable",
+    "claimed",
+    "closed",
+}
+
+
+REQUEST_TRANSITIONS = {
+    "submitted": {"awaiting_documents", "under_review"},
+    "awaiting_documents": {"under_review"},
+    "under_review": {"needs_attention", "approved"},
+    "needs_attention": {"under_review", "awaiting_documents"},
+    "approved": {"claimable"},
+    "claimable": {"claimed"},
+    "claimed": {"closed"},
+    "closed": set(),
+}
+
+
 PUBLIC_STATUS_LABELS = {
     "submitted": "Personal Info Submitted",
     "awaiting_documents": "Waiting for Supporting Documents",
@@ -61,6 +93,30 @@ def is_public_editable(status: str) -> bool:
     Whether citizen secure edit links should remain active.
     """
     return status in EDITABLE_PUBLIC_STATES
+
+
+def is_locked_status(status: str) -> bool:
+    """
+    Approved and later lifecycle states block document changes and edits.
+    """
+    return status in LOCKED_REQUEST_STATUSES
+
+
+def can_transition_status(current_status: str, new_status: str) -> bool:
+    """
+    Return whether a request status transition is permitted by v0.5 policy.
+    Same-state updates are allowed as no-op saves by callers.
+    """
+    if current_status == new_status:
+        return True
+    return new_status in REQUEST_TRANSITIONS.get(current_status, set())
+
+
+def get_allowed_next_statuses(current_status: str) -> set[str]:
+    """
+    Allowed next statuses for staff controls and service validation.
+    """
+    return set(REQUEST_TRANSITIONS.get(current_status, set()))
 
 
 def requires_citizen_action(status: str) -> bool:

@@ -9,8 +9,9 @@ from django.utils import timezone
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
 from apps.assistance.services.lifecycle import (
+    is_locked_status,
+    is_public_editable,
     next_status_after_citizen_update,
-    requires_citizen_action,
 )
 
 
@@ -45,10 +46,10 @@ def _allowed_document_types() -> frozenset[str]:
 def _assert_request_allows_document_changes(citizen_request: CitizenRequest) -> None:
     if not citizen_request.is_active:
         raise DocumentServiceError("This request is no longer active.")
-    if citizen_request.is_locked and not requires_citizen_action(
-        citizen_request.status
-    ):
+    if citizen_request.is_locked or is_locked_status(citizen_request.status):
         raise DocumentServiceError("This request is locked and cannot be changed.")
+    if not is_public_editable(citizen_request.status):
+        raise DocumentServiceError("This request is not accepting document changes.")
 
 
 def _timeline_event(
@@ -85,7 +86,8 @@ def _return_to_review_after_citizen_update(
         return
 
     citizen_request.status = next_status
-    citizen_request.save(update_fields=["status", "updated_at"])
+    citizen_request.is_locked = is_locked_status(next_status)
+    citizen_request.save(update_fields=["status", "is_locked", "updated_at"])
     _timeline_event(
         citizen_request=citizen_request,
         event_type="citizen_update_received",

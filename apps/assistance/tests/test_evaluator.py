@@ -1,5 +1,8 @@
+import shutil
+from pathlib import Path
+
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.assistance.models import AssistanceProgram, RequestDocument
 from apps.assistance.services.evaluator import (
@@ -8,8 +11,19 @@ from apps.assistance.services.evaluator import (
 )
 from apps.assistance.services.request_service import RequestSubmissionService
 
+_TEST_MEDIA_ROOT = Path(__file__).resolve().parents[3] / ".test_media"
+_TEST_MEDIA_ROOT.mkdir(exist_ok=True)
+_TEST_MEDIA = _TEST_MEDIA_ROOT / "evaluator"
+_TEST_MEDIA.mkdir(exist_ok=True)
 
+
+@override_settings(MEDIA_ROOT=str(_TEST_MEDIA))
 class RequestCompletenessEvaluatorTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(_TEST_MEDIA, ignore_errors=True)
+
     def setUp(self):
         super().setUp()
         self.program = AssistanceProgram.objects.create(
