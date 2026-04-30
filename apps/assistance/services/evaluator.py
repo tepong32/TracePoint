@@ -46,7 +46,7 @@ def evaluate_request_completeness(request: CitizenRequest) -> dict:
     required_documents = get_required_documents(request)
 
     document_rows = list(
-        request.documents.values(
+        request.documents.filter(is_removed=False).values(
             "document_type",
             "status",
             "remarks",

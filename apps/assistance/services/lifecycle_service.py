@@ -21,6 +21,7 @@ def _create_status_change_log(
     request_obj: CitizenRequest,
     old_status: str,
     new_status: str,
+    actor=None,
 ) -> None:
     """Record status transition details for auditability."""
     try:
@@ -48,6 +49,7 @@ def _create_status_change_log(
             f"old_status={old_status}; "
             f"new_status={new_status}"
         ),
+        created_by=actor if getattr(actor, "is_authenticated", False) else None,
     )
 
 
@@ -83,6 +85,7 @@ def transition_request_status(
             request_obj=request_obj,
             old_status=old_status,
             new_status=new_status,
+            actor=actor,
         )
 
     dispatch_notification(

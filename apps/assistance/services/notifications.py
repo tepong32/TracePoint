@@ -95,7 +95,7 @@ def prepare_document_review_notification(
 
     request_obj = document.request
     doc_label = document.get_document_type_display()
-    status_label = document.get_status_display()
+    status_label = dict(RequestDocument.STATUS_CHOICES).get(document.status, document.status)
     remarks = document.remarks or "No remarks provided."
     message = (
         f"Your {doc_label} for request {request_obj.tracking_code} was reviewed: "

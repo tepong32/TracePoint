@@ -107,6 +107,20 @@ class RequestCompletenessEvaluatorTests(TestCase):
             [{"document_type": "others", "status": "pending", "remarks": ""}],
         )
 
+    def test_soft_removed_document_does_not_satisfy_required_missing_logic(self):
+        RequestDocument.objects.create(
+            request=self.request_obj,
+            document_type="birth_cert",
+            file=self._pdf("removed-birth-cert.pdf"),
+            status="approved",
+            is_removed=True,
+        )
+
+        result = evaluate_request_completeness(self.request_obj)
+
+        self.assertFalse(result["is_complete"])
+        self.assertIn("birth_cert", result["missing_documents"])
+
     def test_extra_non_required_problematic_does_not_block_completion(self):
         for document_type in get_required_documents(self.request_obj):
             self._create_document(document_type=document_type, status="approved")
