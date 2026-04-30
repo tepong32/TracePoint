@@ -3,54 +3,59 @@
 TracePoint is a **GovTech SaaS-ready Django platform** for citizen assistance request workflows.
 
 The MVP is built around a **no-login citizen continuation flow**, allowing applicants to:
-- submit requests
+- submit assistance requests
 - continue through secure edit links
-- upload and replace documents
+- upload, replace, and remove supporting documents
 - track progress using reference codes
-- receive future Email/SMS updates
+- receive best-effort Email/SMS updates
 
 The long-term goal is to evolve TracePoint into a **multi-tenant public service workflow platform for LGUs**, starting with assistance-first use cases.
 
 ---
 
-## 🚀 Current Milestone
-**v0.4.1 — Secure Edit + Document Lifecycle Service Layer**
+## Current Milestone
+**v0.5 - Lifecycle Engine**
 
 ### Highlights
-- secure citizen edit routes via `secure_edit_token`
-- service-based upload / replace / delete flow
+- centralized request lifecycle policy and staff workflow services
+- role-aware staff queues, transitions, document review, and fulfillment
+- citizen progress tracking across submitted, document, review, approval, claim, and closure states
+- approval blocked until all required documents are approved
 - soft-delete document lifecycle with history preservation
-- transaction-safe storage cleanup
-- locked read-only citizen continuation page
-- public secure-edit endpoint tests
-- SaaS-ready service boundaries
+- best-effort Email/SMS notification adapter registry
+- audit-friendly timeline entries for status, document, citizen, notification, and workflow events
+- focused lifecycle, security, document, notification, and public-flow tests
 
 ---
 
-## ✨ Current MVP Features
+## Current MVP Features
 ### Citizen
 - no-login request submission
 - secure continuation links
 - request tracking
-- document upload / replace / delete
-- locked request view after approval
+- document upload, replacement, and soft-delete
+- needs-attention recovery loop
+- locked request view after approval and fulfillment states
 
 ### Staff
-- MSWD review dashboard
-- request status + remarks updates
+- role-aware review dashboard
+- request lifecycle transitions
+- approval and fulfillment workflow
+- request status and remarks updates
+- document review with independent document states
 - request and document audit timeline
-- printable request pages
+- timeline labels for lifecycle, document, citizen, notification, and workflow events
 
 ### Platform
 - service-layer architecture
 - environment-based upload settings
 - soft-delete lifecycle model
 - DRF-ready structure
-- future Email + SMS adapter support
+- configurable Email + SMS adapter baseline
 
 ---
 
-## 🏗️ Product Direction
+## Product Direction
 TracePoint is being designed as a **reusable GovTech workflow engine** with:
 - service-oriented Django architecture
 - audit-friendly lifecycle logging
@@ -60,14 +65,13 @@ TracePoint is being designed as a **reusable GovTech workflow engine** with:
 
 ---
 
-## 🛣️ Roadmap
-### v0.5+
-- lifecycle orchestration engine
-- claim and fulfillment workflow
-- notification adapter layer
-- status transition rules
+## Roadmap
+### v0.5 Wrap-Up
+- browser smoke test public and staff lifecycle flows
+- refine staff UI copy and operational affordances
+- prepare branch for review and release notes
 
-### future platform milestones
+### Future Platform Milestones
 - DRF public APIs
 - department workflow templates
 - analytics dashboards
@@ -76,5 +80,5 @@ TracePoint is being designed as a **reusable GovTech workflow engine** with:
 
 ---
 
-## 📌 Vision
+## Vision
 TracePoint aims to become a **secure, reusable, SaaS-grade citizen service workflow platform** that reduces account friction while preserving auditability and operational control for LGUs.

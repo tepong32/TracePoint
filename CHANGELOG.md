@@ -1,4 +1,17 @@
 # Changelog
+## [Unreleased] - v0.5 Lifecycle Engine wrap-up
+### Added
+- Centralized staff workflow orchestration for role-aware status transitions, document review, and fulfillment.
+- Public lifecycle progress context with required-document visibility across tracking and secure edit pages.
+- Staff request detail completeness summary and timeline event labeling.
+- Notification adapter registry with configurable Email/SMS channels and best-effort failure logging.
+- Tests for approval preconditions, fulfillment transitions, public progress, staff queue metadata, notification dispatch, and workflow error logging.
+
+### Changed
+- Staff dashboard flags now use required-document completeness instead of broad active-document checks.
+- Approval is blocked until all required documents are approved.
+- Public and staff views now delegate more lifecycle decisions to services.
+
 ## [0.5.0] - 2026-04-21
 ### ✨ Added
 feat(public-ui): complete citizen request lifecycle with guided UI flow
