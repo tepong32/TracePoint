@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+from typing import Protocol
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -13,6 +14,8 @@ from apps.assistance.services.lifecycle import (
 )
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_NOTIFICATION_CHANNELS = ("email", "sms")
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,13 @@ class NotificationResult:
     channel: str
     status: str
     message: str
+
+
+class NotificationAdapter(Protocol):
+    channel: str
+
+    def send(self, trigger: NotificationTrigger) -> NotificationResult:
+        """Send one notification trigger through a concrete channel."""
 
 
 DOCUMENT_REVIEW_NOTIFICATION_STATUSES = {
@@ -152,6 +162,44 @@ class LoggingSmsNotificationAdapter:
         )
 
 
+NOTIFICATION_ADAPTERS = {
+    EmailNotificationAdapter.channel: EmailNotificationAdapter,
+    LoggingSmsNotificationAdapter.channel: LoggingSmsNotificationAdapter,
+}
+
+
+def get_enabled_notification_channels() -> tuple[str, ...]:
+    """
+    Return configured notification channels while preserving email + SMS as
+    the baseline default required by the product contract.
+    """
+    channels = getattr(
+        settings,
+        "TRACEPOINT_NOTIFICATION_CHANNELS",
+        DEFAULT_NOTIFICATION_CHANNELS,
+    )
+    if isinstance(channels, str):
+        channels = (channels,)
+
+    normalized = []
+    for channel in channels:
+        value = str(channel).strip().lower()
+        if value and value not in normalized:
+            normalized.append(value)
+    return tuple(normalized)
+
+
+def get_notification_adapters() -> tuple[NotificationAdapter, ...]:
+    adapters = []
+    for channel in get_enabled_notification_channels():
+        adapter_cls = NOTIFICATION_ADAPTERS.get(channel)
+        if adapter_cls is None:
+            logger.warning("Unknown notification channel configured: %s", channel)
+            continue
+        adapters.append(adapter_cls())
+    return tuple(adapters)
+
+
 def _record_notification_result(
     *,
     citizen_request: CitizenRequest,
@@ -180,12 +228,8 @@ def dispatch_notification(
     if trigger is None:
         return []
 
-    adapters = (
-        EmailNotificationAdapter(),
-        LoggingSmsNotificationAdapter(),
-    )
     results: list[NotificationResult] = []
-    for adapter in adapters:
+    for adapter in get_notification_adapters():
         try:
             result = adapter.send(trigger)
         except Exception as exc:
