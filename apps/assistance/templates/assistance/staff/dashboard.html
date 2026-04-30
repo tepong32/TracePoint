@@ -115,10 +115,10 @@
                         <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a><br />
                         <label for="status-{{ req.id }}">Change status</label>
                         <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status">
-                            {% for status_value, status_label in status_choices %}
-                                {% if req.status == status_value or status_value in req.allowed_next_statuses %}
-                                    <option value="{{ status_value }}" {% if req.status == status_value %}selected{% endif %}>{{ status_label }}</option>
-                                {% endif %}
+                            {% for option in req.transition_options %}
+                                <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
+                                    {{ option.label }}{% if option.disabled %} - blocked{% endif %}
+                                </option>
                             {% endfor %}
                         </select>
                     </td>

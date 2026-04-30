@@ -1,7 +1,6 @@
 from functools import wraps
 
 from django.contrib.auth.views import redirect_to_login
-from django.db.models import Exists, OuterRef
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -11,10 +10,9 @@ from apps.assistance.models import CitizenRequest, RequestDocument
 from apps.assistance.services.staff_workflow_service import (
     QUEUE_STATUS_MAP,
     StaffWorkflowError,
-    allowed_transition_statuses,
-    can_review_documents,
+    apply_staff_queue_metadata,
+    build_staff_request_detail_context,
     default_queue_for_user,
-    is_request_locked,
     is_staff_user,
     review_document_by_staff,
     update_request_by_staff,
@@ -91,11 +89,7 @@ def staff_dashboard_view(request):
     if end_date:
         requests_qs = requests_qs.filter(submitted_at__date__lte=end_date)
 
-    active_docs = RequestDocument.objects.filter(request=OuterRef("pk"), is_removed=False)
-    requests_qs = requests_qs.annotate(
-        has_missing_documents=~Exists(active_docs),
-        has_doc_issues=Exists(active_docs.exclude(status="approved")),
-    ).order_by("-submitted_at")
+    requests_qs = requests_qs.order_by("-submitted_at")
 
     today = timezone.localdate()
     base_stats = CitizenRequest.objects.filter(is_active=True)
@@ -116,9 +110,7 @@ def staff_dashboard_view(request):
         .order_by("program__name")
     )
 
-    requests = list(requests_qs)
-    for req in requests:
-        req.allowed_next_statuses = allowed_transition_statuses(request.user, req.status)
+    requests = apply_staff_queue_metadata(list(requests_qs), request.user)
 
     context = {
         "requests": requests,
@@ -144,32 +136,15 @@ def staff_request_detail_view(request, request_id):
         id=request_id,
         is_active=True,
     )
-    documents = request_obj.documents.filter(is_removed=False).order_by("document_type", "-uploaded_at")
-    timeline_items = request_obj.timeline.select_related("created_by").order_by("-created_at")
-
-    document_total = documents.count()
-    approved_documents = documents.filter(status="approved").count()
-    issue_documents = documents.exclude(status__in=("approved", "pending")).count()
-    pending_documents = documents.filter(status="pending").count()
-    has_needs_attention = document_total == 0 or issue_documents > 0
-
-    allowed_next_statuses = allowed_transition_statuses(request.user, request_obj.status)
+    workflow_context = build_staff_request_detail_context(
+        request_obj=request_obj,
+        user=request.user,
+    )
     context = {
         "request_obj": request_obj,
-        "documents": documents,
-        "timeline_items": timeline_items,
         "status_choices": _request_status_choices(),
-        "allowed_next_statuses": allowed_next_statuses,
         "document_status_choices": _document_status_choices(),
-        "is_locked": is_request_locked(request_obj),
-        "can_review_documents": can_review_documents(request.user),
-        "has_needs_attention": has_needs_attention,
-        "document_review_summary": {
-            "total": document_total,
-            "approved": approved_documents,
-            "pending": pending_documents,
-            "issues": issue_documents,
-        },
+        **workflow_context,
     }
     return render(request, "assistance/staff/request_detail.html", context)
 

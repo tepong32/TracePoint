@@ -7,7 +7,11 @@ from apps.assistance.models import AssistanceProgram, RequestDocument, RequestTi
 from apps.assistance.services.request_service import RequestSubmissionService
 from apps.assistance.services.staff_workflow_service import (
     StaffWorkflowError,
+    apply_staff_queue_metadata,
+    build_staff_request_detail_context,
     review_document_by_staff,
+    timeline_display_items,
+    transition_options_for_request,
     update_request_by_staff,
 )
 
@@ -165,6 +169,16 @@ class StaffWorkflowServiceTests(TestCase):
         self.request_obj.refresh_from_db()
         self.assertEqual(self.request_obj.status, "under_review")
 
+    def test_transition_options_explain_blocked_approval(self):
+        self.request_obj.status = "under_review"
+        self.request_obj.save(update_fields=["status", "updated_at"])
+
+        options = transition_options_for_request(self.approver, self.request_obj)
+        approved_option = next(option for option in options if option["value"] == "approved")
+
+        self.assertTrue(approved_option["disabled"])
+        self.assertIn("required documents", approved_option["reason"])
+
     def test_approver_can_approve_when_required_documents_are_approved(self):
         self.request_obj.status = "under_review"
         self.request_obj.save(update_fields=["status", "updated_at"])
@@ -213,3 +227,36 @@ class StaffWorkflowServiceTests(TestCase):
         self.request_obj.refresh_from_db()
         self.assertEqual(self.request_obj.status, "closed")
         self.assertTrue(self.request_obj.is_locked)
+
+    def test_staff_detail_context_summarizes_required_documents(self):
+        self._document(document_type="birth_cert", status="approved")
+
+        context = build_staff_request_detail_context(
+            request_obj=self.request_obj,
+            user=self.reviewer,
+        )
+
+        self.assertFalse(context["document_review_summary"]["is_complete"])
+        self.assertIn("indigency", context["document_review_summary"]["missing"])
+        self.assertTrue(context["has_needs_attention"])
+
+    def test_queue_metadata_uses_required_document_completeness(self):
+        self._document(document_type="birth_cert", status="approved")
+
+        requests = apply_staff_queue_metadata([self.request_obj], self.reviewer)
+
+        self.assertTrue(requests[0].has_missing_documents)
+        self.assertFalse(requests[0].has_doc_issues)
+        self.assertTrue(requests[0].transition_options)
+
+    def test_timeline_display_items_labels_audit_event_types(self):
+        RequestTimeline.objects.create(
+            request=self.request_obj,
+            event_type="workflow_error",
+            message="Something failed.",
+        )
+
+        entries = timeline_display_items(self.request_obj.timeline.order_by("-created_at"))
+
+        self.assertEqual(entries[0]["label"], "Workflow Error")
+        self.assertEqual(entries[0]["tone"], "danger")

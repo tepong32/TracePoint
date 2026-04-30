@@ -19,6 +19,12 @@
         .doc-pending { background: #fff8e1; }
         .doc-issue { background: #fdecea; }
         .timeline-item { border-bottom: 1px solid #ececec; padding: 8px 0; }
+        .timeline-badge { display: inline-block; border-radius: 4px; padding: 2px 6px; margin-right: 6px; font-size: 12px; font-weight: 700; background: #eef2f7; color: #303846; }
+        .timeline-danger { background: #fdecea; color: #8a1a1a; }
+        .timeline-status { background: #e8f1ff; color: #124fa3; }
+        .timeline-document { background: #fff8e1; color: #6a4b00; }
+        .timeline-citizen { background: #eef8ee; color: #245f34; }
+        .timeline-notification { background: #f3f4f6; color: #444; }
         .feedback { margin: 10px 0; padding: 8px; border-radius: 4px; display: none; }
         .ok { background: #e7f6ea; color: #245f34; border: 1px solid #c5e8cc; }
         .err { background: #fdecea; color: #8a1a1a; border: 1px solid #f7c8c8; }
@@ -27,6 +33,10 @@
         .context-strip { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
         .context-item { border: 1px solid #e4e4e4; border-radius: 4px; padding: 8px; background: #fafafa; }
         .context-item strong { display: block; font-size: 18px; }
+        .requirements { margin: 0 0 12px; padding-left: 18px; }
+        .req-missing, .req-issue { color: #8a1a1a; }
+        .req-approved { color: #245f34; }
+        .transition-note { color: #6b7280; font-size: 12px; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -46,6 +56,9 @@
     {% if has_needs_attention %}
         <div class="attention">Needs Attention: missing documents or reviewed documents with issues should be resolved before approval.</div>
     {% endif %}
+    {% if not document_review_summary.is_complete %}
+        <div class="attention">Approval is blocked until every required document below is approved.</div>
+    {% endif %}
 
     <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
@@ -60,12 +73,17 @@
                 <label for="request-status">Status</label>
                 <div>
                     <select id="request-status">
-                        {% for value, label in status_choices %}
-                            {% if request_obj.status == value or value in allowed_next_statuses %}
-                                <option value="{{ value }}" {% if request_obj.status == value %}selected{% endif %}>{{ label }}</option>
-                            {% endif %}
+                        {% for option in transition_options %}
+                            <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
+                                {{ option.label }}{% if option.disabled %} - blocked{% endif %}
+                            </option>
                         {% endfor %}
                     </select>
+                    {% for option in transition_options %}
+                        {% if option.disabled %}
+                            <div class="transition-note">{{ option.reason }}</div>
+                        {% endif %}
+                    {% endfor %}
                 </div>
             </div>
             <div class="row">
@@ -77,6 +95,15 @@
 
         <section class="panel">
             <h2>B. Document Review Panel</h2>
+            <h3>Required Documents</h3>
+            <ul class="requirements">
+                {% for item in document_review_summary.required %}
+                    <li class="{% if item.is_missing %}req-missing{% elif item.needs_attention %}req-issue{% elif item.status == 'approved' %}req-approved{% endif %}">
+                        <strong>{{ item.label }}</strong> - {{ item.status_label }}
+                        {% if item.remarks %}<br><span>Remarks: {{ item.remarks }}</span>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
             <table>
                 <thead>
                     <tr>
@@ -113,10 +140,11 @@
 
         <section class="panel">
             <h2>C. Timeline / Logs</h2>
-            {% for item in timeline_items %}
+            {% for entry in timeline_items %}
                 <div class="timeline-item">
-                    <strong>{{ item.created_at|date:"M d, Y H:i" }}</strong> - {{ item.message }}
-                    <div>By: {% if item.created_by %}{{ item.created_by }}{% else %}System{% endif %}</div>
+                    <span class="timeline-badge timeline-{{ entry.tone }}">{{ entry.label }}</span>
+                    <strong>{{ entry.item.created_at|date:"M d, Y H:i" }}</strong> - {{ entry.item.message }}
+                    <div>By: {% if entry.item.created_by %}{{ entry.item.created_by }}{% else %}System{% endif %}</div>
                 </div>
             {% empty %}
                 <p>No timeline entries yet.</p>

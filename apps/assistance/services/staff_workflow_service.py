@@ -1,8 +1,12 @@
 import logging
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
-from apps.assistance.services.evaluator import evaluate_request_completeness
+from apps.assistance.services.evaluator import (
+    evaluate_request_completeness,
+    get_required_documents,
+)
 from apps.assistance.services.lifecycle import (
+    REQUEST_STATUS_CHOICES,
     get_allowed_next_statuses,
     is_locked_status,
 )
@@ -62,6 +66,18 @@ ROLE_TRANSITIONS = {
 }
 
 DOCUMENT_REVIEW_ROLES = {"assistance_reviewer", "mswd"}
+
+TIMELINE_EVENT_META = {
+    "submitted": ("Submitted", "info"),
+    "status_change": ("Status Change", "status"),
+    "staff_update": ("Staff Update", "staff"),
+    "document_uploaded": ("Document Uploaded", "document"),
+    "document_replaced": ("Document Replaced", "document"),
+    "document_removed": ("Document Removed", "document"),
+    "citizen_update_received": ("Citizen Update", "citizen"),
+    "notification": ("Notification", "notification"),
+    "workflow_error": ("Workflow Error", "danger"),
+}
 
 
 class StaffWorkflowError(Exception):
@@ -127,6 +143,54 @@ def allowed_transition_statuses(user, current_status: str) -> set[str]:
     }
 
 
+def _approval_block_reason(request_obj: CitizenRequest) -> str:
+    completeness = evaluate_request_completeness(request_obj)
+    if completeness["is_complete"]:
+        return ""
+    return "Approval requires all required documents to be approved."
+
+
+def transition_options_for_request(user, request_obj: CitizenRequest) -> list[dict]:
+    allowed_statuses = allowed_transition_statuses(user, request_obj.status)
+    status_labels = dict(REQUEST_STATUS_CHOICES)
+    options = [
+        {
+            "value": request_obj.status,
+            "label": status_labels.get(request_obj.status, request_obj.status),
+            "is_current": True,
+            "disabled": False,
+            "reason": "",
+        }
+    ]
+
+    for status in REQUEST_STATUS_CHOICES:
+        value = status[0]
+        if value not in allowed_statuses:
+            continue
+        reason = ""
+        if value == "approved":
+            reason = _approval_block_reason(request_obj)
+        options.append(
+            {
+                "value": value,
+                "label": status_labels.get(value, value),
+                "is_current": False,
+                "disabled": bool(reason),
+                "reason": reason,
+            }
+        )
+    return options
+
+
+def apply_staff_queue_metadata(requests: list[CitizenRequest], user) -> list[CitizenRequest]:
+    for request_obj in requests:
+        completeness = evaluate_request_completeness(request_obj)
+        request_obj.has_missing_documents = bool(completeness["missing_documents"])
+        request_obj.has_doc_issues = bool(completeness["has_issues"])
+        request_obj.transition_options = transition_options_for_request(user, request_obj)
+    return requests
+
+
 def can_review_documents(user) -> bool:
     return has_all_queue_access(user) or bool(staff_role_names(user) & DOCUMENT_REVIEW_ROLES)
 
@@ -146,6 +210,87 @@ def create_staff_timeline_event(*, request_obj: CitizenRequest, message: str, us
         message=message,
         created_by=_actor(user),
     )
+
+
+def _document_review_summary(*, request_obj: CitizenRequest, documents) -> dict:
+    completeness = evaluate_request_completeness(request_obj)
+    required_types = get_required_documents(request_obj)
+    labels = dict(RequestDocument.DOCUMENT_TYPE_CHOICES)
+    active_by_type = {doc.document_type: doc for doc in documents}
+    required_documents = []
+
+    for doc_type in required_types:
+        document = active_by_type.get(doc_type)
+        required_documents.append(
+            {
+                "type": doc_type,
+                "label": labels.get(doc_type, doc_type),
+                "status": document.status if document else "missing",
+                "status_label": document.get_status_display() if document else "Missing",
+                "remarks": document.remarks if document else "",
+                "is_missing": document is None,
+                "needs_attention": bool(
+                    document and document.status not in {"approved", "pending"}
+                ),
+            }
+        )
+
+    return {
+        "total": len(documents),
+        "approved": sum(1 for doc in documents if doc.status == "approved"),
+        "pending": sum(1 for doc in documents if doc.status == "pending"),
+        "issues": sum(1 for doc in documents if doc.status not in {"approved", "pending"}),
+        "required": required_documents,
+        "missing": completeness["missing_documents"],
+        "problematic": completeness["problematic_documents"],
+        "is_complete": completeness["is_complete"],
+    }
+
+
+def timeline_display_items(timeline_items) -> list[dict]:
+    display_items = []
+    for item in timeline_items:
+        label, tone = TIMELINE_EVENT_META.get(
+            item.event_type,
+            (item.event_type.replace("_", " ").title(), "info"),
+        )
+        display_items.append(
+            {
+                "item": item,
+                "label": label,
+                "tone": tone,
+            }
+        )
+    return display_items
+
+
+def build_staff_request_detail_context(*, request_obj: CitizenRequest, user) -> dict:
+    documents = list(
+        request_obj.documents.filter(is_removed=False).order_by(
+            "document_type",
+            "-uploaded_at",
+        )
+    )
+    timeline_items = list(
+        request_obj.timeline.select_related("created_by").order_by("-created_at")
+    )
+    document_summary = _document_review_summary(
+        request_obj=request_obj,
+        documents=documents,
+    )
+
+    return {
+        "documents": documents,
+        "timeline_items": timeline_display_items(timeline_items),
+        "allowed_next_statuses": allowed_transition_statuses(user, request_obj.status),
+        "transition_options": transition_options_for_request(user, request_obj),
+        "is_locked": is_request_locked(request_obj),
+        "can_review_documents": can_review_documents(user),
+        "has_needs_attention": bool(
+            document_summary["missing"] or document_summary["problematic"]
+        ),
+        "document_review_summary": document_summary,
+    }
 
 
 def update_request_by_staff(
