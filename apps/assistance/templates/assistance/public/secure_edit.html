@@ -9,6 +9,9 @@
     .callout-info { background: #eef5ff; border: 1px solid #9bbfe8; color: #163b5c; }
     .callout-warning { background: #fff7e6; border: 1px solid #e0a100; color: #5f4300; }
     .guidance { border-left: 4px solid #555; padding: 10px 14px; margin-bottom: 14px; background: #f7f7f7; }
+    .requirements { border: 1px solid #d9dde3; border-radius: 6px; padding: 12px; margin-bottom: 14px; }
+    .req-missing, .req-issue { color: #8a1a1a; }
+    .req-approved { color: #245f34; }
     .muted { color: #5f6368; }
 </style>
 
@@ -34,9 +37,9 @@
 
 <h2>Progress</h2>
 <ol>
-    <li>Step 1: Request submitted</li>
-    <li><strong>Step 2: Upload documents</strong></li>
-    <li>Step 3: Review and updates</li>
+    {% for step in progress_steps %}
+        <li>{% if step.state == "current" %}<strong>{{ step.label }}</strong>{% else %}{{ step.label }}{% endif %}</li>
+    {% endfor %}
 </ol>
 
 <div class="guidance">
@@ -47,6 +50,18 @@
         <li>Your request status updates automatically after each successful upload.</li>
     </ul>
 </div>
+
+<h2>Required documents</h2>
+<section class="requirements">
+    <ul>
+        {% for item in required_documents %}
+            <li class="{% if item.is_missing %}req-missing{% elif item.needs_attention %}req-issue{% elif item.status == 'approved' %}req-approved{% endif %}">
+                <strong>{{ item.label }}</strong> - {{ item.status_label }}
+                {% if item.remarks %}<br><span>Remarks: {{ item.remarks }}</span>{% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</section>
 
 {% if request_obj.status == "under_review" %}
     <div style="background: #eef8ee; border: 1px solid #1f7a1f; color: #1f5f1f; padding: 1rem; margin-bottom: 1rem;">

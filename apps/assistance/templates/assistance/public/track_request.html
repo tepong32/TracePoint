@@ -11,6 +11,12 @@
     .callout-locked { background: #f4f4f5; border: 1px solid #c7c7cc; color: #3f3f46; }
     .progress { padding-left: 1.25rem; }
     .progress li { margin-bottom: 6px; }
+    .progress .complete { color: #245f34; }
+    .progress .current { font-weight: 700; color: #124fa3; }
+    .progress .upcoming { color: #6b7280; }
+    .requirements { border: 1px solid #d9dde3; border-radius: 6px; padding: 12px; margin-bottom: 14px; }
+    .req-missing, .req-issue { color: #8a1a1a; }
+    .req-approved { color: #245f34; }
     .muted { color: #5f6368; }
 </style>
 
@@ -38,10 +44,22 @@
 
 <h2>Progress</h2>
 <ol class="progress">
-    <li>{% if progress_step == 1 %}<strong>Request submitted</strong>{% else %}Request submitted{% endif %}</li>
-    <li>{% if progress_step >= 2 %}<strong>Supporting documents</strong>{% else %}Supporting documents{% endif %}</li>
-    <li>{% if progress_step >= 3 %}<strong>Review and updates</strong>{% else %}Review and updates{% endif %}</li>
+    {% for step in progress_steps %}
+        <li class="{{ step.state }}">{{ step.label }}</li>
+    {% endfor %}
 </ol>
+
+<h2>Required Documents</h2>
+<section class="requirements">
+    <ul>
+        {% for item in required_documents %}
+            <li class="{% if item.is_missing %}req-missing{% elif item.needs_attention %}req-issue{% elif item.status == 'approved' %}req-approved{% endif %}">
+                <strong>{{ item.label }}</strong> - {{ item.status_label }}
+                {% if item.remarks %}<br><span>Remarks: {{ item.remarks }}</span>{% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</section>
 
 <h2>Documents</h2>
 <ul>

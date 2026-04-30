@@ -26,6 +26,13 @@
     </dl>
 </section>
 
+<h2>Progress</h2>
+<ol>
+    {% for step in progress_steps %}
+        <li>{% if step.state == "current" %}<strong>{{ step.label }}</strong>{% else %}{{ step.label }}{% endif %}</li>
+    {% endfor %}
+</ol>
+
 <h2>Documents on file</h2>
 <ul>
     {% for doc in documents %}

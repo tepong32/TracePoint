@@ -42,6 +42,13 @@ class StaffWorkflowServiceTests(TestCase):
         )
         self.approver.groups.add(Group.objects.get(name="assistance_approver"))
 
+        self.fulfillment = user_model.objects.create_user(
+            username="workflow-fulfillment",
+            password="pass-12345",
+            is_staff=True,
+        )
+        self.fulfillment.groups.add(Group.objects.get(name="assistance_fulfillment"))
+
     def _pdf(self, name: str) -> SimpleUploadedFile:
         return SimpleUploadedFile(name, b"%PDF-1.4 test", content_type="application/pdf")
 
@@ -142,3 +149,67 @@ class StaffWorkflowServiceTests(TestCase):
                 created_by=self.reviewer,
             ).exists()
         )
+
+    def test_approval_requires_all_required_documents_approved(self):
+        self.request_obj.status = "under_review"
+        self.request_obj.save(update_fields=["status", "updated_at"])
+        self._document(document_type="birth_cert", status="approved")
+
+        with self.assertRaises(StaffWorkflowError):
+            update_request_by_staff(
+                request_obj=self.request_obj,
+                user=self.approver,
+                new_status="approved",
+            )
+
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, "under_review")
+
+    def test_approver_can_approve_when_required_documents_are_approved(self):
+        self.request_obj.status = "under_review"
+        self.request_obj.save(update_fields=["status", "updated_at"])
+        self._document(document_type="birth_cert", status="approved")
+        self._document(document_type="indigency", status="approved")
+        self._document(document_type="school_id", status="approved")
+
+        update_request_by_staff(
+            request_obj=self.request_obj,
+            user=self.approver,
+            new_status="approved",
+        )
+
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, "approved")
+        self.assertTrue(self.request_obj.is_locked)
+
+    def test_fulfillment_role_advances_locked_claim_lifecycle(self):
+        self.request_obj.status = "approved"
+        self.request_obj.is_locked = True
+        self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+
+        update_request_by_staff(
+            request_obj=self.request_obj,
+            user=self.fulfillment,
+            new_status="claimable",
+        )
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, "claimable")
+        self.assertTrue(self.request_obj.is_locked)
+
+        update_request_by_staff(
+            request_obj=self.request_obj,
+            user=self.fulfillment,
+            new_status="claimed",
+        )
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, "claimed")
+        self.assertTrue(self.request_obj.is_locked)
+
+        update_request_by_staff(
+            request_obj=self.request_obj,
+            user=self.fulfillment,
+            new_status="closed",
+        )
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, "closed")
+        self.assertTrue(self.request_obj.is_locked)

@@ -147,6 +147,9 @@ class RequestDocument(models.Model):
     def __str__(self):
         return f"{self.request.tracking_code} - {self.document_type}"
 
+    def get_status_display(self):
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+
     @property
     def was_replaced_by_citizen(self) -> bool:
         return self.replacement_count > 0

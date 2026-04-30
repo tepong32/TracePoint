@@ -7,17 +7,17 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.assistance.models.models import AssistanceProgram, CitizenRequest, RequestDocument
+from apps.assistance.models.models import (
+    AssistanceProgram,
+    CitizenRequest,
+    RequestDocument,
+    RequestTimeline,
+)
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
 from apps.assistance.services.request_service import RequestSubmissionService
-from apps.assistance.services.lifecycle import (
-    get_progress_step,
-    get_public_status_label,
-    is_locked_status,
-    is_public_editable,
-    requires_citizen_action,
-)
+from apps.assistance.services.lifecycle import is_locked_status
 from apps.assistance.services.lifecycle_service import apply_auto_status_transition
+from apps.assistance.services.public_progress_service import build_public_progress_context
 
 logger = logging.getLogger(__name__)
 
@@ -32,38 +32,6 @@ def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
 
 def _documents_locked(request_obj: CitizenRequest) -> bool:
     return request_obj.is_locked or is_locked_status(request_obj.status)
-
-
-def _public_request_context(request_obj: CitizenRequest) -> dict:
-    progress_step = get_progress_step(request_obj.status)
-    can_update_documents = is_public_editable(request_obj.status) and not request_obj.is_locked
-
-    action_callout = None
-    if requires_citizen_action(request_obj.status):
-        action_callout = {
-            "tone": "warning",
-            "title": "Update your request",
-            "message": "Some documents need attention. Upload a replacement or add the requested correction so staff can continue the review.",
-        }
-    elif can_update_documents:
-        action_callout = {
-            "tone": "info",
-            "title": "Documents can still be updated",
-            "message": "Upload missing supporting documents or replace a file before staff completes the review.",
-        }
-    elif request_obj.is_locked:
-        action_callout = {
-            "tone": "locked",
-            "title": "Request locked",
-            "message": "This request has moved past document editing. You can still review the current status and documents on file.",
-        }
-
-    return {
-        "progress_step": progress_step,
-        "public_status_label": get_public_status_label(request_obj.status),
-        "can_update_documents": can_update_documents,
-        "action_callout": action_callout,
-    }
 
 
 def submit_request_view(request, program_slug):
@@ -128,7 +96,7 @@ def track_request_view(request, tracking_code):
         {
             "request_obj": request_obj,
             "documents": documents,
-            **_public_request_context(request_obj),
+            **build_public_progress_context(request_obj),
         },
     )
 
@@ -146,7 +114,7 @@ def secure_edit_view(request, secure_edit_token):
             {
                 "request_obj": request_obj,
                 "documents": documents,
-                **_public_request_context(request_obj),
+                **build_public_progress_context(request_obj),
             },
         )
 
@@ -160,7 +128,7 @@ def secure_edit_view(request, secure_edit_token):
             "request_obj": request_obj,
             "documents": documents,
             "document_type_choices": RequestDocument.DOCUMENT_TYPE_CHOICES,
-            **_public_request_context(request_obj),
+            **build_public_progress_context(request_obj),
         },
     )
 
@@ -208,8 +176,15 @@ def upload_document_ajax(request, secure_edit_token):
             previous_status_for_audit=status_before_upload,
         )
     except Exception:
-        # Safety guard: never break existing upload response shape.
-        pass
+        logger.exception(
+            "Auto status transition failed after citizen upload for request %s.",
+            request_obj.id,
+        )
+        RequestTimeline.objects.create(
+            request=request_obj,
+            event_type="workflow_error",
+            message="Auto status transition failed after citizen upload.",
+        )
 
     return JsonResponse(
         {"status": "success", "message": "File uploaded successfully."},

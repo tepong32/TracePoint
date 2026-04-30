@@ -2,6 +2,7 @@ import json
 import secrets
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 from django.db.models import Q
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -166,6 +167,37 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         )
         data = json.loads(r.content.decode())
         self.assertEqual(data["status"], "error")
+
+    def test_upload_auto_transition_failure_is_logged_without_breaking_response(self):
+        self.req.status = "awaiting_documents"
+        self.req.save(update_fields=["status", "updated_at"])
+        url = reverse(
+            "assistance:upload_document_ajax",
+            kwargs={"secure_edit_token": self.req.secure_edit_token},
+        )
+
+        with patch(
+            "apps.assistance.views.public.apply_auto_status_transition",
+            side_effect=RuntimeError("boom"),
+        ), patch("apps.assistance.views.public.logger.exception"):
+            r = self.client.post(
+                url,
+                data={
+                    "document_type": "birth_cert",
+                    "file": self._pdf(),
+                },
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+
+        data = json.loads(r.content.decode())
+        self.assertEqual(data["status"], "success")
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="workflow_error",
+                message__contains="Auto status transition failed",
+            ).exists()
+        )
 
     def test_delete_ajax_success_shape(self):
         doc = DocumentService.upload_or_replace(

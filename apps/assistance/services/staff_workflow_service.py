@@ -1,6 +1,7 @@
 import logging
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
+from apps.assistance.services.evaluator import evaluate_request_completeness
 from apps.assistance.services.lifecycle import (
     get_allowed_next_statuses,
     is_locked_status,
@@ -168,6 +169,13 @@ def update_request_by_staff(
 
     if is_request_locked(request_obj) and remarks_changed:
         raise StaffWorkflowError("Request is locked and remarks cannot be edited.")
+
+    if status_changed and new_status == "approved":
+        completeness = evaluate_request_completeness(request_obj)
+        if not completeness["is_complete"]:
+            raise StaffWorkflowError(
+                "Request cannot be approved until all required documents are approved."
+            )
 
     if status_changed:
         try:
