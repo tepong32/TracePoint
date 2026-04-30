@@ -1,4 +1,8 @@
 # Changelog
+## [0.5.1] - 2026-04-30
+### 🧹 Chore
+- Lifecycle engine branch wrap-up
+
 ## [Unreleased] - v0.5 Lifecycle Engine wrap-up
 ### Added
 - Centralized staff workflow orchestration for role-aware status transitions, document review, and fulfillment.
