@@ -2,6 +2,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 
 from apps.assistance.models import AssistanceProgram, RequestTimeline
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.lifecycle_service import (
     LifecycleTransitionError,
     transition_request_status,
@@ -27,11 +28,11 @@ class LifecycleServiceTests(TestCase):
     def test_valid_forward_transition_is_logged(self):
         transition_request_status(
             self.request_obj,
-            new_status="awaiting_documents",
+            new_status=RequestStatus.AWAITING_DOCUMENTS,
         )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "awaiting_documents")
+        self.assertEqual(self.request_obj.status, RequestStatus.AWAITING_DOCUMENTS)
         self.assertFalse(self.request_obj.is_locked)
         self.assertTrue(
             RequestTimeline.objects.filter(
@@ -45,37 +46,37 @@ class LifecycleServiceTests(TestCase):
         with self.assertRaises(LifecycleTransitionError):
             transition_request_status(
                 self.request_obj,
-                new_status="claimed",
+                new_status=RequestStatus.CLAIMED,
             )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "submitted")
+        self.assertEqual(self.request_obj.status, RequestStatus.SUBMITTED)
 
     def test_approved_status_locks_request(self):
-        self.request_obj.status = "under_review"
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
         self.request_obj.save(update_fields=["status", "updated_at"])
 
         transition_request_status(
             self.request_obj,
-            new_status="approved",
+            new_status=RequestStatus.APPROVED,
         )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "approved")
+        self.assertEqual(self.request_obj.status, RequestStatus.APPROVED)
         self.assertTrue(self.request_obj.is_locked)
 
     def test_fulfillment_transition_can_advance_locked_lifecycle_status(self):
-        self.request_obj.status = "approved"
+        self.request_obj.status = RequestStatus.APPROVED
         self.request_obj.is_locked = True
         self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
 
         transition_request_status(
             self.request_obj,
-            new_status="claimable",
+            new_status=RequestStatus.CLAIMABLE,
         )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "claimable")
+        self.assertEqual(self.request_obj.status, RequestStatus.CLAIMABLE)
         self.assertTrue(self.request_obj.is_locked)
 
     @override_settings(
@@ -83,13 +84,13 @@ class LifecycleServiceTests(TestCase):
         DEFAULT_FROM_EMAIL="tracepoint@example.test",
     )
     def test_notification_is_dispatched_for_claimable_transition(self):
-        self.request_obj.status = "approved"
+        self.request_obj.status = RequestStatus.APPROVED
         self.request_obj.is_locked = True
         self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
 
         transition_request_status(
             self.request_obj,
-            new_status="claimable",
+            new_status=RequestStatus.CLAIMABLE,
         )
 
         self.assertEqual(len(mail.outbox), 1)

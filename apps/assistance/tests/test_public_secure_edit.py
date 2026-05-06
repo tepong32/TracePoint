@@ -18,6 +18,7 @@ from apps.assistance.models import (
     RequestTimeline,
 )
 from apps.assistance.services.document_service import DocumentService
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.request_service import RequestSubmissionService
 
 _TEST_MEDIA_ROOT = Path(__file__).resolve().parents[3] / ".test_media"
@@ -74,7 +75,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertContains(r, "locked")
 
     def test_needs_attention_reopens_secure_edit_when_locked(self):
-        self.req.status = "needs_attention"
+        self.req.status = RequestStatus.NEEDS_ATTENTION
         self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:secure_edit",
@@ -86,7 +87,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertNotContains(r, "locked")
 
     def test_needs_attention_upload_returns_to_awaiting_documents_if_incomplete(self):
-        self.req.status = "needs_attention"
+        self.req.status = RequestStatus.NEEDS_ATTENTION
         self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
@@ -103,7 +104,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         data = json.loads(r.content.decode())
         self.assertEqual(data["status"], "success")
         self.req.refresh_from_db()
-        self.assertEqual(self.req.status, "awaiting_documents")
+        self.assertEqual(self.req.status, RequestStatus.AWAITING_DOCUMENTS)
         self.assertTrue(
             RequestTimeline.objects.filter(
                 request=self.req,
@@ -116,7 +117,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         )
 
     def test_upload_ajax_success_shape(self):
-        self.req.status = "awaiting_documents"
+        self.req.status = RequestStatus.AWAITING_DOCUMENTS
         self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
@@ -140,7 +141,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
             ).exists()
         )
         self.req.refresh_from_db()
-        self.assertEqual(self.req.status, "awaiting_documents")
+        self.assertEqual(self.req.status, RequestStatus.AWAITING_DOCUMENTS)
 
     def test_upload_ajax_locked(self):
         self.req.is_locked = True
@@ -193,7 +194,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertEqual(data["status"], "error")
 
     def test_upload_auto_transition_failure_is_logged_without_breaking_response(self):
-        self.req.status = "awaiting_documents"
+        self.req.status = RequestStatus.AWAITING_DOCUMENTS
         self.req.save(update_fields=["status", "updated_at"])
         url = reverse(
             "assistance:upload_document_ajax",
@@ -259,7 +260,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
             email="o@example.com",
             phone="08881234567",
             citizen=other_citizen,
-            status="submitted",
+            status=RequestStatus.SUBMITTED,
         )
         doc = DocumentService.upload_or_replace(
             citizen_request=other,

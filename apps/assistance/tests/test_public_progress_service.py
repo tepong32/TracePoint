@@ -2,6 +2,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from apps.assistance.models import AssistanceProgram, RequestDocument
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.public_progress_service import build_public_progress_context
 from apps.assistance.services.request_service import RequestSubmissionService
 
@@ -37,7 +38,7 @@ class PublicProgressServiceTests(TestCase):
         self.assertTrue(all(item["is_missing"] for item in context["required_documents"]))
 
     def test_needs_attention_marks_problem_document_for_citizen(self):
-        self.request_obj.status = "needs_attention"
+        self.request_obj.status = RequestStatus.NEEDS_ATTENTION
         self.request_obj.save(update_fields=["status", "updated_at"])
         RequestDocument.objects.create(
             request=self.request_obj,
@@ -56,7 +57,7 @@ class PublicProgressServiceTests(TestCase):
         self.assertIn("birth_cert", [doc["document_type"] for doc in context["problematic_documents"]])
 
     def test_locked_progress_disables_document_updates(self):
-        self.request_obj.status = "claimable"
+        self.request_obj.status = RequestStatus.CLAIMABLE
         self.request_obj.is_locked = True
         self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
 
@@ -65,6 +66,6 @@ class PublicProgressServiceTests(TestCase):
         self.assertFalse(context["can_update_documents"])
         self.assertEqual(context["action_callout"]["tone"], "locked")
         self.assertIn(
-            ("claimable", "current"),
+            (RequestStatus.CLAIMABLE, "current"),
             [(step.key, step.state) for step in context["progress_steps"]],
         )
