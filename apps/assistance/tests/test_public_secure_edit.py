@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.db.models import Q
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TransactionTestCase, override_settings
@@ -34,6 +35,7 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.client = Client()
         self.program = AssistanceProgram.objects.create(
             name="Prog",
@@ -155,6 +157,28 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         data = json.loads(r.content.decode())
         self.assertEqual(data["status"], "error")
         self.assertIn("locked", data["message"].lower())
+        self.assertEqual(r.status_code, 403)
+
+    def test_upload_ajax_invalid_edit_code_returns_403_and_logs_attempt(self):
+        url = reverse(
+            "assistance:upload_document_ajax",
+            kwargs={"secure_edit_token": "bad-token"},
+        )
+        with patch(
+            "apps.assistance.services.public_access_service.logger.warning"
+        ) as warning_mock:
+            r = self.client.post(
+                url,
+                data={"document_type": "others", "file": self._pdf()},
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+                REMOTE_ADDR="203.0.113.10",
+            )
+
+        data = json.loads(r.content.decode())
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(data["message"], "Invalid edit code.")
+        warning_mock.assert_called_once()
 
     def test_upload_ajax_requires_xhr_header(self):
         url = reverse(
@@ -177,9 +201,9 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         )
 
         with patch(
-            "apps.assistance.views.public.apply_auto_status_transition",
+            "apps.assistance.services.document_service.apply_auto_status_transition",
             side_effect=RuntimeError("boom"),
-        ), patch("apps.assistance.views.public.logger.exception"):
+        ), patch("apps.assistance.services.document_service.logger.exception"):
             r = self.client.post(
                 url,
                 data={
@@ -253,3 +277,24 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         )
         data = json.loads(r.content.decode())
         self.assertEqual(data["status"], "error")
+
+    def test_delete_ajax_invalid_edit_code_returns_403_and_logs_attempt(self):
+        url = reverse(
+            "assistance:delete_document",
+            kwargs={"secure_edit_token": "bad-token"},
+        )
+        with patch(
+            "apps.assistance.services.public_access_service.logger.warning"
+        ) as warning_mock:
+            r = self.client.post(
+                url,
+                data={"doc_id": "1"},
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+                REMOTE_ADDR="203.0.113.10",
+            )
+
+        data = json.loads(r.content.decode())
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(data["message"], "Invalid edit code.")
+        warning_mock.assert_called_once()

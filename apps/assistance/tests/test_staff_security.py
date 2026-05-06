@@ -6,6 +6,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.assistance.models import AssistanceProgram
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.request_service import RequestSubmissionService
 
 
@@ -125,7 +126,7 @@ class StaffViewSecurityTests(TestCase):
         self.assertIn("role", data["message"].lower())
 
     def test_fulfillment_role_can_mark_approved_request_claimable(self):
-        self.request_obj.status = "approved"
+        self.request_obj.status = RequestStatus.APPROVED
         self.request_obj.is_locked = True
         self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
         self.client.force_login(self.fulfillment_user)
@@ -142,4 +143,51 @@ class StaffViewSecurityTests(TestCase):
         data = json.loads(response.content.decode())
         self.assertEqual(data["status"], "success")
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "claimable")
+        self.assertEqual(self.request_obj.status, RequestStatus.CLAIMABLE)
+
+    def test_approver_cannot_approve_until_required_documents_complete(self):
+        approver_user = get_user_model().objects.create_user(
+            username="approver-inline",
+            password="pass-12345",
+            is_staff=True,
+        )
+        approver_user.groups.add(Group.objects.get(name="assistance_approver"))
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
+        self.request_obj.save(update_fields=["status", "updated_at"])
+        self.client.force_login(approver_user)
+
+        response = self.client.post(
+            reverse(
+                "assistance_staff:request_status_inline",
+                kwargs={"request_id": self.request_obj.id},
+            ),
+            data={"status": RequestStatus.APPROVED},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content.decode())
+        self.assertEqual(data["status"], "error")
+        self.assertIn("required documents", data["message"].lower())
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, RequestStatus.UNDER_REVIEW)
+
+    def test_fulfillment_cannot_edit_locked_remarks(self):
+        self.request_obj.status = RequestStatus.APPROVED
+        self.request_obj.is_locked = True
+        self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+        self.client.force_login(self.fulfillment_user)
+
+        response = self.client.post(
+            reverse(
+                "assistance_staff:request_update_ajax",
+                kwargs={"request_id": self.request_obj.id},
+            ),
+            data={"remarks": "Trying to edit a locked request."},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content.decode())
+        self.assertEqual(data["status"], "error")
+        self.assertIn("locked", data["message"].lower())

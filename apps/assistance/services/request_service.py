@@ -7,6 +7,7 @@ from apps.assistance.models import (
     RequestTimeline,
 )
 from apps.assistance.services.citizen_service import CitizenService
+from apps.assistance.services.lifecycle import RequestStatus
 
 
 class RequestSubmissionService:
@@ -35,7 +36,7 @@ class RequestSubmissionService:
             email=email,
             phone=phone,
             citizen=citizen,
-            status="submitted",
+            status=RequestStatus.SUBMITTED,
         )
 
         CitizenService.update_request_stats(citizen)

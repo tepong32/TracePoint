@@ -3,73 +3,93 @@ TracePoint Assistance Lifecycle Service
 Source-of-truth workflow policy helpers for citizen requests.
 """
 
+class RequestStatus:
+    SUBMITTED = "submitted"
+    AWAITING_DOCUMENTS = "awaiting_documents"
+    UNDER_REVIEW = "under_review"
+    NEEDS_ATTENTION = "needs_attention"
+    APPROVED = "approved"
+    CLAIMABLE = "claimable"
+    CLAIMED = "claimed"
+    CLOSED = "closed"
+
+
 REQUEST_LIFECYCLE = {
-    "submitted": 1,
-    "awaiting_documents": 2,
-    "under_review": 3,
-    "needs_attention": 4,
-    "approved": 5,
-    "claimable": 6,
-    "claimed": 7,
-    "closed": 8,
+    RequestStatus.SUBMITTED: 1,
+    RequestStatus.AWAITING_DOCUMENTS: 2,
+    RequestStatus.UNDER_REVIEW: 3,
+    RequestStatus.NEEDS_ATTENTION: 4,
+    RequestStatus.APPROVED: 5,
+    RequestStatus.CLAIMABLE: 6,
+    RequestStatus.CLAIMED: 7,
+    RequestStatus.CLOSED: 8,
 }
 
 
 REQUEST_STATUS_CHOICES = [
-    ("submitted", "Submitted"),
-    ("awaiting_documents", "Awaiting Documents"),
-    ("under_review", "Under Review"),
-    ("needs_attention", "Needs Attention"),
-    ("approved", "Approved"),
-    ("claimable", "Ready to Claim"),
-    ("claimed", "Claimed"),
-    ("closed", "Closed"),
+    (RequestStatus.SUBMITTED, "Submitted"),
+    (RequestStatus.AWAITING_DOCUMENTS, "Awaiting Documents"),
+    (RequestStatus.UNDER_REVIEW, "Under Review"),
+    (RequestStatus.NEEDS_ATTENTION, "Needs Attention"),
+    (RequestStatus.APPROVED, "Approved"),
+    (RequestStatus.CLAIMABLE, "Ready to Claim"),
+    (RequestStatus.CLAIMED, "Claimed"),
+    (RequestStatus.CLOSED, "Closed"),
 ]
 
 
 LOCKED_REQUEST_STATUSES = {
-    "approved",
-    "claimable",
-    "claimed",
-    "closed",
+    RequestStatus.APPROVED,
+    RequestStatus.CLAIMABLE,
+    RequestStatus.CLAIMED,
+    RequestStatus.CLOSED,
 }
 
 
 REQUEST_TRANSITIONS = {
-    "submitted": {"awaiting_documents", "under_review"},
-    "awaiting_documents": {"under_review"},
-    "under_review": {"needs_attention", "approved"},
-    "needs_attention": {"under_review", "awaiting_documents"},
-    "approved": {"claimable"},
-    "claimable": {"claimed"},
-    "claimed": {"closed"},
-    "closed": set(),
+    RequestStatus.SUBMITTED: {
+        RequestStatus.AWAITING_DOCUMENTS,
+        RequestStatus.UNDER_REVIEW,
+    },
+    RequestStatus.AWAITING_DOCUMENTS: {RequestStatus.UNDER_REVIEW},
+    RequestStatus.UNDER_REVIEW: {
+        RequestStatus.NEEDS_ATTENTION,
+        RequestStatus.APPROVED,
+    },
+    RequestStatus.NEEDS_ATTENTION: {
+        RequestStatus.UNDER_REVIEW,
+        RequestStatus.AWAITING_DOCUMENTS,
+    },
+    RequestStatus.APPROVED: {RequestStatus.CLAIMABLE},
+    RequestStatus.CLAIMABLE: {RequestStatus.CLAIMED},
+    RequestStatus.CLAIMED: {RequestStatus.CLOSED},
+    RequestStatus.CLOSED: set(),
 }
 
 
 PUBLIC_STATUS_LABELS = {
-    "submitted": "Personal Info Submitted",
-    "awaiting_documents": "Waiting for Supporting Documents",
-    "under_review": "Under Review",
-    "needs_attention": "Action Needed",
-    "approved": "Approved",
-    "claimable": "Ready to Claim",
-    "claimed": "Claimed",
-    "closed": "Closed",
+    RequestStatus.SUBMITTED: "Personal Info Submitted",
+    RequestStatus.AWAITING_DOCUMENTS: "Waiting for Supporting Documents",
+    RequestStatus.UNDER_REVIEW: "Under Review",
+    RequestStatus.NEEDS_ATTENTION: "Action Needed",
+    RequestStatus.APPROVED: "Approved",
+    RequestStatus.CLAIMABLE: "Ready to Claim",
+    RequestStatus.CLAIMED: "Claimed",
+    RequestStatus.CLOSED: "Closed",
 }
 
 
 EDITABLE_PUBLIC_STATES = {
-    "submitted",
-    "awaiting_documents",
-    "needs_attention",
+    RequestStatus.SUBMITTED,
+    RequestStatus.AWAITING_DOCUMENTS,
+    RequestStatus.NEEDS_ATTENTION,
 }
 
 
 NOTIFICATION_TRIGGER_STATES = {
-    "needs_attention",
-    "claimable",
-    "closed",
+    RequestStatus.NEEDS_ATTENTION,
+    RequestStatus.CLAIMABLE,
+    RequestStatus.CLOSED,
 }
 
 
@@ -123,7 +143,7 @@ def requires_citizen_action(status: str) -> bool:
     """
     True when citizen must revisit and update request details/documents.
     """
-    return status == "needs_attention"
+    return status == RequestStatus.NEEDS_ATTENTION
 
 
 def should_trigger_notification(status: str) -> bool:
@@ -138,6 +158,6 @@ def next_status_after_citizen_update(current_status: str) -> str:
     Once citizen responds to an action-needed request,
     send it back to staff review automatically.
     """
-    if current_status == "needs_attention":
-        return "under_review"
+    if current_status == RequestStatus.NEEDS_ATTENTION:
+        return RequestStatus.UNDER_REVIEW
     return current_status

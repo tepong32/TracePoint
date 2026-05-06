@@ -1,7 +1,6 @@
 # apps/assistance/services/document_service.py
-import os
+import logging
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -13,30 +12,16 @@ from apps.assistance.services.lifecycle import (
     is_public_editable,
     next_status_after_citizen_update,
 )
+from apps.assistance.services.lifecycle_service import apply_auto_status_transition
+from apps.assistance.utils import validate_file_upload
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentServiceError(Exception):
     """Business rule violation for document operations (map to HTTP in views)."""
 
     pass
-
-
-def validate_uploaded_file(uploaded_file) -> None:
-    """Raises django.core.exceptions.ValidationError on invalid uploads."""
-    allowed = getattr(
-        settings,
-        "TRACEPOINT_UPLOAD_ALLOWED_EXTENSIONS",
-        (".pdf",),
-    )
-    max_mb = int(getattr(settings, "TRACEPOINT_UPLOAD_MAX_SIZE_MB", 5))
-
-    ext = os.path.splitext(getattr(uploaded_file, "name", "") or "")[1].lower()
-    if ext not in allowed:
-        raise ValidationError(f"Unsupported file type: {ext or '(none)'}")
-
-    size = getattr(uploaded_file, "size", None)
-    if size is not None and size > max_mb * 1024 * 1024:
-        raise ValidationError(f"File size exceeds {max_mb}MB.")
 
 
 def _allowed_document_types() -> frozenset[str]:
@@ -98,6 +83,65 @@ def _return_to_review_after_citizen_update(
 
 class DocumentService:
     @classmethod
+    def upload_for_citizen(
+        cls,
+        *,
+        citizen_request: CitizenRequest,
+        document_type: str,
+        uploaded_file,
+        created_by=None,
+    ) -> RequestDocument:
+        status_before_upload = citizen_request.status
+        document = cls.upload_or_replace(
+            citizen_request=citizen_request,
+            document_type=document_type,
+            uploaded_file=uploaded_file,
+            created_by=created_by,
+        )
+        cls._apply_post_upload_lifecycle(
+            citizen_request=citizen_request,
+            previous_status=status_before_upload,
+        )
+        return document
+
+    @classmethod
+    def delete_for_citizen(
+        cls,
+        *,
+        citizen_request: CitizenRequest,
+        document_id: int,
+        created_by=None,
+    ) -> None:
+        cls.soft_delete_document(
+            citizen_request=citizen_request,
+            document_id=document_id,
+            created_by=created_by,
+        )
+
+    @classmethod
+    def _apply_post_upload_lifecycle(
+        cls,
+        *,
+        citizen_request: CitizenRequest,
+        previous_status: str,
+    ) -> None:
+        try:
+            apply_auto_status_transition(
+                citizen_request,
+                previous_status_for_audit=previous_status,
+            )
+        except Exception:
+            logger.exception(
+                "Auto status transition failed after citizen upload for request %s.",
+                citizen_request.id,
+            )
+            RequestTimeline.objects.create(
+                request=citizen_request,
+                event_type="workflow_error",
+                message="Auto status transition failed after citizen upload.",
+            )
+
+    @classmethod
     def upload_or_replace(
         cls,
         *,
@@ -116,7 +160,10 @@ class DocumentService:
         if document_type not in _allowed_document_types():
             raise DocumentServiceError("Invalid document type.")
 
-        validate_uploaded_file(uploaded_file)
+        try:
+            validate_file_upload(uploaded_file)
+        except ValidationError as exc:
+            raise DocumentServiceError(str(exc)) from exc
         _assert_request_allows_document_changes(citizen_request)
 
         superseded_names: list[str] = []
@@ -139,7 +186,7 @@ class DocumentService:
                 if old_name:
                     active.replacement_count += 1
                     superseded_names.append(old_name)
-                active.status = "pending"
+                active.status = RequestDocument.STATUS_CHOICES[0][0]
                 active.save()
                 _timeline_event(
                     citizen_request=citizen_request,
@@ -172,7 +219,7 @@ class DocumentService:
                     removed.file = uploaded_file
                     removed.is_removed = False
                     removed.removed_at = None
-                    removed.status = "pending"
+                    removed.status = RequestDocument.STATUS_CHOICES[0][0]
                     if old_name:
                         removed.replacement_count += 1
                         superseded_names.append(old_name)
@@ -197,7 +244,7 @@ class DocumentService:
                         request=citizen_request,
                         document_type=document_type,
                         file=uploaded_file,
-                        status="pending",
+                        status=RequestDocument.STATUS_CHOICES[0][0],
                     )
                     _timeline_event(
                         citizen_request=citizen_request,

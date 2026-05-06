@@ -1,8 +1,4 @@
-# apps/assistance/views/public.py
-import logging
-
 from django.contrib import messages
-from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -11,15 +7,15 @@ from apps.assistance.models.models import (
     AssistanceProgram,
     CitizenRequest,
     RequestDocument,
-    RequestTimeline,
 )
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
-from apps.assistance.services.request_service import RequestSubmissionService
 from apps.assistance.services.lifecycle import is_locked_status
-from apps.assistance.services.lifecycle_service import apply_auto_status_transition
+from apps.assistance.services.public_access_service import (
+    InvalidPublicEditToken,
+    get_request_for_public_mutation,
+)
 from apps.assistance.services.public_progress_service import build_public_progress_context
-
-logger = logging.getLogger(__name__)
+from apps.assistance.services.request_service import RequestSubmissionService
 
 
 def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
@@ -141,15 +137,36 @@ def _ajax_delete_error(message: str):
     return JsonResponse({"status": "error", "message": message})
 
 
+def _ajax_upload_forbidden(message: str):
+    return JsonResponse(
+        {"status": "error", "message": message},
+        status=403,
+    )
+
+
+def _ajax_delete_forbidden(message: str):
+    return JsonResponse(
+        {"status": "error", "message": message},
+        status=403,
+    )
+
+
 @require_POST
 def upload_document_ajax(request, secure_edit_token):
     if request.headers.get("x-requested-with") != "XMLHttpRequest":
         return _ajax_upload_error("Invalid request.")
 
-    request_obj = _citizen_request_for_secure_edit(secure_edit_token)
+    try:
+        request_obj = get_request_for_public_mutation(
+            request=request,
+            edit_token=secure_edit_token,
+            action="upload_document",
+        )
+    except InvalidPublicEditToken as exc:
+        return _ajax_upload_forbidden(str(exc))
 
     if _documents_locked(request_obj):
-        return _ajax_upload_error("This request is locked.")
+        return _ajax_upload_forbidden("This request is locked.")
 
     doc_type = request.POST.get("document_type", "").strip()
     uploaded_file = request.FILES.get("file")
@@ -157,34 +174,14 @@ def upload_document_ajax(request, secure_edit_token):
     if not doc_type or not uploaded_file:
         return _ajax_upload_error("Missing file or document type.")
 
-    status_before_upload = request_obj.status
-
     try:
-        DocumentService.upload_or_replace(
+        DocumentService.upload_for_citizen(
             citizen_request=request_obj,
             document_type=doc_type,
             uploaded_file=uploaded_file,
         )
     except DocumentServiceError as e:
         return _ajax_upload_error(str(e))
-    except ValidationError as e:
-        return _ajax_upload_error(str(e))
-
-    try:
-        apply_auto_status_transition(
-            request_obj,
-            previous_status_for_audit=status_before_upload,
-        )
-    except Exception:
-        logger.exception(
-            "Auto status transition failed after citizen upload for request %s.",
-            request_obj.id,
-        )
-        RequestTimeline.objects.create(
-            request=request_obj,
-            event_type="workflow_error",
-            message="Auto status transition failed after citizen upload.",
-        )
 
     return JsonResponse(
         {"status": "success", "message": "File uploaded successfully."},
@@ -196,10 +193,17 @@ def delete_document_view(request, secure_edit_token):
     if request.headers.get("x-requested-with") != "XMLHttpRequest":
         return _ajax_delete_error("Invalid request.")
 
-    request_obj = _citizen_request_for_secure_edit(secure_edit_token)
+    try:
+        request_obj = get_request_for_public_mutation(
+            request=request,
+            edit_token=secure_edit_token,
+            action="delete_document",
+        )
+    except InvalidPublicEditToken as exc:
+        return _ajax_delete_forbidden(str(exc))
 
     if _documents_locked(request_obj):
-        return _ajax_delete_error("Request is locked.")
+        return _ajax_delete_forbidden("Request is locked.")
 
     doc_id_raw = request.POST.get("doc_id")
     try:
@@ -208,7 +212,7 @@ def delete_document_view(request, secure_edit_token):
         return _ajax_delete_error("Document not found.")
 
     try:
-        DocumentService.soft_delete_document(
+        DocumentService.delete_for_citizen(
             citizen_request=request_obj,
             document_id=doc_id,
         )

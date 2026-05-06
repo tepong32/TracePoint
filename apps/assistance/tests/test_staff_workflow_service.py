@@ -4,6 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from apps.assistance.models import AssistanceProgram, RequestDocument, RequestTimeline
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.request_service import RequestSubmissionService
 from apps.assistance.services.staff_workflow_service import (
     StaffWorkflowError,
@@ -65,7 +66,7 @@ class StaffWorkflowServiceTests(TestCase):
         )
 
     def test_reviewer_document_issue_moves_request_to_needs_attention(self):
-        self.request_obj.status = "under_review"
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
         self.request_obj.save(update_fields=["status", "updated_at"])
         self._document(document_type="birth_cert", status="approved")
         self._document(document_type="indigency", status="approved")
@@ -80,7 +81,7 @@ class StaffWorkflowServiceTests(TestCase):
 
         self.assertTrue(changed)
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "needs_attention")
+        self.assertEqual(self.request_obj.status, RequestStatus.NEEDS_ATTENTION)
         self.assertTrue(
             RequestTimeline.objects.filter(
                 request=self.request_obj,
@@ -91,7 +92,7 @@ class StaffWorkflowServiceTests(TestCase):
         )
 
     def test_reviewer_approving_last_required_document_moves_request_to_under_review(self):
-        self.request_obj.status = "awaiting_documents"
+        self.request_obj.status = RequestStatus.AWAITING_DOCUMENTS
         self.request_obj.save(update_fields=["status", "updated_at"])
         self._document(document_type="birth_cert", status="approved")
         self._document(document_type="indigency", status="approved")
@@ -104,7 +105,45 @@ class StaffWorkflowServiceTests(TestCase):
         )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "under_review")
+        self.assertEqual(self.request_obj.status, RequestStatus.UNDER_REVIEW)
+
+    def test_reviewer_can_return_needs_attention_request_to_under_review(self):
+        self.request_obj.status = RequestStatus.NEEDS_ATTENTION
+        self.request_obj.save(update_fields=["status", "updated_at"])
+
+        changed = update_request_by_staff(
+            request_obj=self.request_obj,
+            user=self.reviewer,
+            new_status=RequestStatus.UNDER_REVIEW,
+        )
+
+        self.assertTrue(changed)
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, RequestStatus.UNDER_REVIEW)
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.request_obj,
+                event_type="status_change",
+                message__contains="old_status=needs_attention",
+                created_by=self.reviewer,
+            )
+            .filter(message__contains="new_status=under_review")
+            .exists()
+        )
+
+    def test_reviewer_cannot_send_needs_attention_request_to_awaiting_documents(self):
+        self.request_obj.status = RequestStatus.NEEDS_ATTENTION
+        self.request_obj.save(update_fields=["status", "updated_at"])
+
+        with self.assertRaises(StaffWorkflowError):
+            update_request_by_staff(
+                request_obj=self.request_obj,
+                user=self.reviewer,
+                new_status=RequestStatus.AWAITING_DOCUMENTS,
+            )
+
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, RequestStatus.NEEDS_ATTENTION)
 
     def test_approver_cannot_review_documents(self):
         doc = self._document(document_type="birth_cert", status="pending")
@@ -117,7 +156,7 @@ class StaffWorkflowServiceTests(TestCase):
             )
 
     def test_request_remarks_audit_records_old_and_new_values(self):
-        self.request_obj.status = "under_review"
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
         self.request_obj.remarks = "Initial note"
         self.request_obj.save(update_fields=["status", "remarks", "updated_at"])
 
@@ -142,7 +181,7 @@ class StaffWorkflowServiceTests(TestCase):
         update_request_by_staff(
             request_obj=self.request_obj,
             user=self.reviewer,
-            new_status="under_review",
+            new_status=RequestStatus.UNDER_REVIEW,
         )
 
         self.assertTrue(
@@ -155,7 +194,7 @@ class StaffWorkflowServiceTests(TestCase):
         )
 
     def test_approval_requires_all_required_documents_approved(self):
-        self.request_obj.status = "under_review"
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
         self.request_obj.save(update_fields=["status", "updated_at"])
         self._document(document_type="birth_cert", status="approved")
 
@@ -163,24 +202,26 @@ class StaffWorkflowServiceTests(TestCase):
             update_request_by_staff(
                 request_obj=self.request_obj,
                 user=self.approver,
-                new_status="approved",
+                new_status=RequestStatus.APPROVED,
             )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "under_review")
+        self.assertEqual(self.request_obj.status, RequestStatus.UNDER_REVIEW)
 
     def test_transition_options_explain_blocked_approval(self):
-        self.request_obj.status = "under_review"
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
         self.request_obj.save(update_fields=["status", "updated_at"])
 
         options = transition_options_for_request(self.approver, self.request_obj)
-        approved_option = next(option for option in options if option["value"] == "approved")
+        approved_option = next(
+            option for option in options if option["value"] == RequestStatus.APPROVED
+        )
 
         self.assertTrue(approved_option["disabled"])
         self.assertIn("required documents", approved_option["reason"])
 
     def test_approver_can_approve_when_required_documents_are_approved(self):
-        self.request_obj.status = "under_review"
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
         self.request_obj.save(update_fields=["status", "updated_at"])
         self._document(document_type="birth_cert", status="approved")
         self._document(document_type="indigency", status="approved")
@@ -189,44 +230,90 @@ class StaffWorkflowServiceTests(TestCase):
         update_request_by_staff(
             request_obj=self.request_obj,
             user=self.approver,
-            new_status="approved",
+            new_status=RequestStatus.APPROVED,
         )
 
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "approved")
+        self.assertEqual(self.request_obj.status, RequestStatus.APPROVED)
         self.assertTrue(self.request_obj.is_locked)
 
+    def test_approver_can_move_under_review_back_to_needs_attention(self):
+        self.request_obj.status = RequestStatus.UNDER_REVIEW
+        self.request_obj.save(update_fields=["status", "updated_at"])
+
+        changed = update_request_by_staff(
+            request_obj=self.request_obj,
+            user=self.approver,
+            new_status=RequestStatus.NEEDS_ATTENTION,
+        )
+
+        self.assertTrue(changed)
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, RequestStatus.NEEDS_ATTENTION)
+        self.assertFalse(self.request_obj.is_locked)
+
     def test_fulfillment_role_advances_locked_claim_lifecycle(self):
-        self.request_obj.status = "approved"
+        self.request_obj.status = RequestStatus.APPROVED
         self.request_obj.is_locked = True
         self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
 
         update_request_by_staff(
             request_obj=self.request_obj,
             user=self.fulfillment,
-            new_status="claimable",
+            new_status=RequestStatus.CLAIMABLE,
         )
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "claimable")
+        self.assertEqual(self.request_obj.status, RequestStatus.CLAIMABLE)
         self.assertTrue(self.request_obj.is_locked)
 
         update_request_by_staff(
             request_obj=self.request_obj,
             user=self.fulfillment,
-            new_status="claimed",
+            new_status=RequestStatus.CLAIMED,
         )
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "claimed")
+        self.assertEqual(self.request_obj.status, RequestStatus.CLAIMED)
         self.assertTrue(self.request_obj.is_locked)
 
         update_request_by_staff(
             request_obj=self.request_obj,
             user=self.fulfillment,
-            new_status="closed",
+            new_status=RequestStatus.CLOSED,
         )
         self.request_obj.refresh_from_db()
-        self.assertEqual(self.request_obj.status, "closed")
+        self.assertEqual(self.request_obj.status, RequestStatus.CLOSED)
         self.assertTrue(self.request_obj.is_locked)
+
+    def test_locked_request_blocks_remarks_edit(self):
+        self.request_obj.status = RequestStatus.APPROVED
+        self.request_obj.is_locked = True
+        self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+
+        with self.assertRaises(StaffWorkflowError):
+            update_request_by_staff(
+                request_obj=self.request_obj,
+                user=self.fulfillment,
+                remarks="Locked note update",
+            )
+
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.remarks, "")
+
+    def test_locked_request_blocks_document_review(self):
+        self.request_obj.status = RequestStatus.APPROVED
+        self.request_obj.is_locked = True
+        self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+        doc = self._document(document_type="birth_cert", status="pending")
+
+        with self.assertRaises(StaffWorkflowError):
+            review_document_by_staff(
+                document=doc,
+                user=self.reviewer,
+                new_status="approved",
+            )
+
+        doc.refresh_from_db()
+        self.assertEqual(doc.status, "pending")
 
     def test_staff_detail_context_summarizes_required_documents(self):
         self._document(document_type="birth_cert", status="approved")

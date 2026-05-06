@@ -3,7 +3,7 @@ from django.conf import settings
 from django.db.models import Q
 from django_ckeditor_5.fields import CKEditor5Field
 
-from apps.assistance.services.lifecycle import REQUEST_STATUS_CHOICES
+from apps.assistance.services.lifecycle import REQUEST_STATUS_CHOICES, RequestStatus
 
 
 class AssistanceProgram(models.Model):
@@ -75,7 +75,7 @@ class CitizenRequest(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default="submitted",
+        default=RequestStatus.SUBMITTED,
     )
     remarks = models.TextField(blank=True)
     summary = models.TextField(blank=True)
