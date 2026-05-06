@@ -7,6 +7,7 @@ from apps.assistance.services.evaluator import (
 )
 from apps.assistance.services.lifecycle import (
     REQUEST_STATUS_CHOICES,
+    RequestStatus,
     get_allowed_next_statuses,
     is_locked_status,
 )
@@ -31,11 +32,19 @@ ASSISTANCE_STAFF_GROUPS = {
 }
 
 QUEUE_STATUS_MAP = {
-    "intake": {"submitted", "awaiting_documents", "needs_attention"},
-    "review": {"under_review", "needs_attention"},
-    "approval": {"under_review"},
-    "fulfillment": {"approved", "claimable", "claimed"},
-    "closed": {"closed"},
+    "intake": {
+        RequestStatus.SUBMITTED,
+        RequestStatus.AWAITING_DOCUMENTS,
+        RequestStatus.NEEDS_ATTENTION,
+    },
+    "review": {RequestStatus.UNDER_REVIEW, RequestStatus.NEEDS_ATTENTION},
+    "approval": {RequestStatus.UNDER_REVIEW},
+    "fulfillment": {
+        RequestStatus.APPROVED,
+        RequestStatus.CLAIMABLE,
+        RequestStatus.CLAIMED,
+    },
+    "closed": {RequestStatus.CLOSED},
     "all": set(),
 }
 
@@ -48,20 +57,20 @@ ROLE_DEFAULT_QUEUE = {
 
 ROLE_TRANSITIONS = {
     "assistance_reviewer": {
-        ("submitted", "awaiting_documents"),
-        ("submitted", "under_review"),
-        ("awaiting_documents", "under_review"),
-        ("needs_attention", "under_review"),
-        ("under_review", "needs_attention"),
+        (RequestStatus.SUBMITTED, RequestStatus.AWAITING_DOCUMENTS),
+        (RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW),
+        (RequestStatus.AWAITING_DOCUMENTS, RequestStatus.UNDER_REVIEW),
+        (RequestStatus.NEEDS_ATTENTION, RequestStatus.UNDER_REVIEW),
+        (RequestStatus.UNDER_REVIEW, RequestStatus.NEEDS_ATTENTION),
     },
     "assistance_approver": {
-        ("under_review", "approved"),
-        ("under_review", "needs_attention"),
+        (RequestStatus.UNDER_REVIEW, RequestStatus.APPROVED),
+        (RequestStatus.UNDER_REVIEW, RequestStatus.NEEDS_ATTENTION),
     },
     "assistance_fulfillment": {
-        ("approved", "claimable"),
-        ("claimable", "claimed"),
-        ("claimed", "closed"),
+        (RequestStatus.APPROVED, RequestStatus.CLAIMABLE),
+        (RequestStatus.CLAIMABLE, RequestStatus.CLAIMED),
+        (RequestStatus.CLAIMED, RequestStatus.CLOSED),
     },
 }
 
@@ -168,7 +177,7 @@ def transition_options_for_request(user, request_obj: CitizenRequest) -> list[di
         if value not in allowed_statuses:
             continue
         reason = ""
-        if value == "approved":
+        if value == RequestStatus.APPROVED:
             reason = _approval_block_reason(request_obj)
         options.append(
             {
@@ -315,7 +324,7 @@ def update_request_by_staff(
     if is_request_locked(request_obj) and remarks_changed:
         raise StaffWorkflowError("Request is locked and remarks cannot be edited.")
 
-    if status_changed and new_status == "approved":
+    if status_changed and new_status == RequestStatus.APPROVED:
         completeness = evaluate_request_completeness(request_obj)
         if not completeness["is_complete"]:
             raise StaffWorkflowError(

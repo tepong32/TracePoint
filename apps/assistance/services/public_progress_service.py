@@ -7,6 +7,7 @@ from apps.assistance.services.evaluator import (
 )
 from apps.assistance.services.lifecycle import (
     REQUEST_LIFECYCLE,
+    RequestStatus,
     get_progress_step,
     get_public_status_label,
     is_public_editable,
@@ -22,14 +23,14 @@ class ProgressStep:
 
 
 PUBLIC_PROGRESS_STEPS = (
-    ("submitted", "Request submitted"),
-    ("awaiting_documents", "Supporting documents"),
-    ("under_review", "Staff review"),
-    ("needs_attention", "Updates needed"),
-    ("approved", "Approved"),
-    ("claimable", "Ready to claim"),
-    ("claimed", "Claimed"),
-    ("closed", "Closed"),
+    (RequestStatus.SUBMITTED, "Request submitted"),
+    (RequestStatus.AWAITING_DOCUMENTS, "Supporting documents"),
+    (RequestStatus.UNDER_REVIEW, "Staff review"),
+    (RequestStatus.NEEDS_ATTENTION, "Updates needed"),
+    (RequestStatus.APPROVED, "Approved"),
+    (RequestStatus.CLAIMABLE, "Ready to claim"),
+    (RequestStatus.CLAIMED, "Claimed"),
+    (RequestStatus.CLOSED, "Closed"),
 )
 
 

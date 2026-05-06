@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.assistance.models import CitizenRequest, RequestDocument
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.staff_workflow_service import (
     QUEUE_STATUS_MAP,
     StaffWorkflowError,
@@ -94,11 +95,21 @@ def staff_dashboard_view(request):
     today = timezone.localdate()
     base_stats = CitizenRequest.objects.filter(is_active=True)
     summary_stats = {
-        "awaiting_documents_total": base_stats.filter(status="awaiting_documents").count(),
-        "under_review_total": base_stats.filter(status="under_review").count(),
-        "claimable_total": base_stats.filter(status="claimable").count(),
+        "awaiting_documents_total": base_stats.filter(
+            status=RequestStatus.AWAITING_DOCUMENTS
+        ).count(),
+        "under_review_total": base_stats.filter(
+            status=RequestStatus.UNDER_REVIEW
+        ).count(),
+        "claimable_total": base_stats.filter(
+            status=RequestStatus.CLAIMABLE
+        ).count(),
         "approved_today": base_stats.filter(
-            status__in=("approved", "claimable", "claimed"),
+            status__in=(
+                RequestStatus.APPROVED,
+                RequestStatus.CLAIMABLE,
+                RequestStatus.CLAIMED,
+            ),
             updated_at__date=today,
         ).count(),
     }
