@@ -38,7 +38,7 @@ class LifecycleServiceTests(TestCase):
             RequestTimeline.objects.filter(
                 request=self.request_obj,
                 event_type="status_change",
-                message__contains="old_status=submitted",
+                message__contains=f"old_status={RequestStatus.SUBMITTED}",
             ).exists()
         )
 

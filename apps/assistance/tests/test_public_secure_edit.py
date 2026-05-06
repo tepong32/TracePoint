@@ -111,8 +111,16 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
                 event_type="status_change",
             )
             .filter(
-                Q(message__contains="old_status=needs_attention")
-                & Q(message__contains="new_status=awaiting_documents")
+                Q(
+                    message__contains=(
+                        f"old_status={RequestStatus.NEEDS_ATTENTION}"
+                    )
+                )
+                & Q(
+                    message__contains=(
+                        f"new_status={RequestStatus.AWAITING_DOCUMENTS}"
+                    )
+                )
             ).exists()
         )
 

@@ -7,6 +7,7 @@ from django.test import TransactionTestCase, override_settings
 
 from apps.assistance.models import AssistanceProgram, RequestTimeline
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.request_service import RequestSubmissionService
 
 _TEST_MEDIA_ROOT = Path(__file__).resolve().parents[3] / ".test_media"
@@ -117,7 +118,7 @@ class DocumentServiceTests(TransactionTestCase):
             )
 
     def test_needs_attention_request_accepts_upload_and_returns_to_review(self):
-        self.req.status = "needs_attention"
+        self.req.status = RequestStatus.NEEDS_ATTENTION
         self.req.save(update_fields=["status", "updated_at"])
 
         DocumentService.upload_or_replace(
@@ -127,7 +128,7 @@ class DocumentServiceTests(TransactionTestCase):
         )
 
         self.req.refresh_from_db()
-        self.assertEqual(self.req.status, "under_review")
+        self.assertEqual(self.req.status, RequestStatus.UNDER_REVIEW)
         self.assertFalse(self.req.is_locked)
         self.assertTrue(
             RequestTimeline.objects.filter(

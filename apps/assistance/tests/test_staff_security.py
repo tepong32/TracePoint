@@ -83,7 +83,7 @@ class StaffViewSecurityTests(TestCase):
                 "assistance_staff:request_status_inline",
                 kwargs={"request_id": self.request_obj.id},
             ),
-            data={"status": "under_review"},
+            data={"status": RequestStatus.UNDER_REVIEW},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
@@ -100,7 +100,7 @@ class StaffViewSecurityTests(TestCase):
                 "assistance_staff:request_status_inline",
                 kwargs={"request_id": self.request_obj.id},
             ),
-            data={"status": "under_review"},
+            data={"status": RequestStatus.UNDER_REVIEW},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
@@ -117,7 +117,7 @@ class StaffViewSecurityTests(TestCase):
                 "assistance_staff:request_status_inline",
                 kwargs={"request_id": self.request_obj.id},
             ),
-            data={"status": "approved"},
+            data={"status": RequestStatus.APPROVED},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
@@ -136,7 +136,7 @@ class StaffViewSecurityTests(TestCase):
                 "assistance_staff:request_status_inline",
                 kwargs={"request_id": self.request_obj.id},
             ),
-            data={"status": "claimable"},
+            data={"status": RequestStatus.CLAIMABLE},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 

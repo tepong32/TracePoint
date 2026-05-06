@@ -8,7 +8,6 @@ from django.core.mail import send_mail
 from apps.assistance.models import RequestDocument, RequestTimeline
 from apps.assistance.models import CitizenRequest
 from apps.assistance.services.lifecycle import (
-    RequestStatus,
     get_public_status_label,
     requires_citizen_action,
     should_trigger_notification,

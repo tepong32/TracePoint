@@ -124,10 +124,12 @@ class StaffWorkflowServiceTests(TestCase):
             RequestTimeline.objects.filter(
                 request=self.request_obj,
                 event_type="status_change",
-                message__contains="old_status=needs_attention",
+                message__contains=f"old_status={RequestStatus.NEEDS_ATTENTION}",
                 created_by=self.reviewer,
             )
-            .filter(message__contains="new_status=under_review")
+            .filter(
+                message__contains=f"new_status={RequestStatus.UNDER_REVIEW}"
+            )
             .exists()
         )
 
@@ -188,7 +190,7 @@ class StaffWorkflowServiceTests(TestCase):
             RequestTimeline.objects.filter(
                 request=self.request_obj,
                 event_type="status_change",
-                message__contains="old_status=submitted",
+                message__contains=f"old_status={RequestStatus.SUBMITTED}",
                 created_by=self.reviewer,
             ).exists()
         )

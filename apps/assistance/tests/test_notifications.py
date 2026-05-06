@@ -4,6 +4,7 @@ from django.core import mail
 from django.test import TestCase, override_settings
 
 from apps.assistance.models import AssistanceProgram, RequestTimeline
+from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.notifications import (
     NotificationResult,
     dispatch_notification,
@@ -30,18 +31,23 @@ class NotificationPrepTests(TestCase):
         )
 
     def test_needs_attention_prepares_citizen_action_notification(self):
-        trigger = prepare_status_notification(self.req, status="needs_attention")
+        trigger = prepare_status_notification(
+            self.req,
+            status=RequestStatus.NEEDS_ATTENTION,
+        )
 
         self.assertIsNotNone(trigger)
         self.assertEqual(trigger.tracking_code, self.req.tracking_code)
-        self.assertEqual(trigger.status, "needs_attention")
+        self.assertEqual(trigger.status, RequestStatus.NEEDS_ATTENTION)
         self.assertEqual(trigger.public_status_label, "Action Needed")
         self.assertEqual(trigger.recipient_email, "jane@example.com")
         self.assertEqual(trigger.recipient_phone, "09123456789")
         self.assertTrue(trigger.requires_citizen_action)
 
     def test_submitted_does_not_prepare_notification(self):
-        self.assertIsNone(prepare_status_notification(self.req, status="submitted"))
+        self.assertIsNone(
+            prepare_status_notification(self.req, status=RequestStatus.SUBMITTED)
+        )
 
     def test_default_channels_include_email_and_sms(self):
         self.assertEqual(get_enabled_notification_channels(), ("email", "sms"))
@@ -68,7 +74,10 @@ class NotificationPrepTests(TestCase):
         TRACEPOINT_NOTIFICATION_CHANNELS=("email",),
     )
     def test_dispatch_uses_configured_adapters_and_records_timeline(self):
-        trigger = prepare_status_notification(self.req, status="claimable")
+        trigger = prepare_status_notification(
+            self.req,
+            status=RequestStatus.CLAIMABLE,
+        )
 
         results = dispatch_notification(trigger, citizen_request=self.req)
 
@@ -98,7 +107,10 @@ class NotificationPrepTests(TestCase):
             def send(self, trigger):
                 return NotificationResult("sms", "success", "SMS queued.")
 
-        trigger = prepare_status_notification(self.req, status="claimable")
+        trigger = prepare_status_notification(
+            self.req,
+            status=RequestStatus.CLAIMABLE,
+        )
 
         from apps.assistance.services import notifications
 
