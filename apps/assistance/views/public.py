@@ -99,24 +99,22 @@ def track_request_view(request, tracking_code):
 
 def secure_edit_view(request, secure_edit_token):
     request_obj = _citizen_request_for_secure_edit(secure_edit_token)
+    progress_context = build_public_progress_context(request_obj)
+    documents = request_obj.documents.filter(is_removed=False).order_by(
+        "-uploaded_at"
+    )
 
-    if _documents_locked(request_obj):
-        documents = request_obj.documents.filter(is_removed=False).order_by(
-            "-uploaded_at"
-        )
+    if _documents_locked(request_obj) or not progress_context["can_update_documents"]:
         return render(
             request,
             "assistance/public/secure_edit_locked.html",
             {
                 "request_obj": request_obj,
                 "documents": documents,
-                **build_public_progress_context(request_obj),
+                **progress_context,
             },
         )
 
-    documents = request_obj.documents.filter(is_removed=False).order_by(
-        "-uploaded_at"
-    )
     return render(
         request,
         "assistance/public/secure_edit.html",
@@ -124,7 +122,7 @@ def secure_edit_view(request, secure_edit_token):
             "request_obj": request_obj,
             "documents": documents,
             "document_type_choices": RequestDocument.DOCUMENT_TYPE_CHOICES,
-            **build_public_progress_context(request_obj),
+            **progress_context,
         },
     )
 

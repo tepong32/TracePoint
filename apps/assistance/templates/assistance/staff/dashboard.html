@@ -114,13 +114,16 @@
                     <td>
                         <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a><br />
                         <label for="status-{{ req.id }}">Change status</label>
-                        <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status">
+                        <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status" {% if not req.can_change_status %}disabled{% endif %}>
                             {% for option in req.transition_options %}
                                 <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
                                     {{ option.label }}{% if option.disabled %} - blocked{% endif %}
                                 </option>
                             {% endfor %}
                         </select>
+                        {% if not req.can_change_status %}
+                            <div class="context-note">No status action available</div>
+                        {% endif %}
                     </td>
                 </tr>
             {% empty %}

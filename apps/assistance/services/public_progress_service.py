@@ -101,6 +101,12 @@ def build_public_progress_context(request_obj: CitizenRequest) -> dict:
             "title": "Documents can still be updated",
             "message": "Upload missing supporting documents or replace a file before staff completes the review.",
         }
+    elif not request_obj.is_locked:
+        action_callout = {
+            "tone": "info",
+            "title": "Documents under review",
+            "message": "Staff is currently reviewing your request. Document editing is unavailable unless staff asks for updates.",
+        }
     elif request_obj.is_locked:
         action_callout = {
             "tone": "locked",

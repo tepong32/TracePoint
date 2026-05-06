@@ -191,12 +191,35 @@ def transition_options_for_request(user, request_obj: CitizenRequest) -> list[di
     return options
 
 
+def can_change_request_status(user, request_obj: CitizenRequest) -> bool:
+    return any(
+        not option["is_current"] and not option["disabled"]
+        for option in transition_options_for_request(user, request_obj)
+    )
+
+
+def has_blocked_transition_options(user, request_obj: CitizenRequest) -> bool:
+    return any(
+        not option["is_current"] and option["disabled"]
+        for option in transition_options_for_request(user, request_obj)
+    )
+
+
+def can_edit_request_remarks(request_obj: CitizenRequest) -> bool:
+    return not is_request_locked(request_obj)
+
+
 def apply_staff_queue_metadata(requests: list[CitizenRequest], user) -> list[CitizenRequest]:
     for request_obj in requests:
         completeness = evaluate_request_completeness(request_obj)
+        transition_options = transition_options_for_request(user, request_obj)
         request_obj.has_missing_documents = bool(completeness["missing_documents"])
         request_obj.has_doc_issues = bool(completeness["has_issues"])
-        request_obj.transition_options = transition_options_for_request(user, request_obj)
+        request_obj.transition_options = transition_options
+        request_obj.can_change_status = any(
+            not option["is_current"] and not option["disabled"]
+            for option in transition_options
+        )
     return requests
 
 
@@ -287,12 +310,27 @@ def build_staff_request_detail_context(*, request_obj: CitizenRequest, user) -> 
         request_obj=request_obj,
         documents=documents,
     )
+    transition_options = transition_options_for_request(user, request_obj)
+    can_change_status = any(
+        not option["is_current"] and not option["disabled"]
+        for option in transition_options
+    )
+    can_edit_remarks = can_edit_request_remarks(request_obj)
+    can_save_request_updates = can_change_status or can_edit_remarks
+    blocked_transition_options = any(
+        not option["is_current"] and option["disabled"]
+        for option in transition_options
+    )
 
     return {
         "documents": documents,
         "timeline_items": timeline_display_items(timeline_items),
         "allowed_next_statuses": allowed_transition_statuses(user, request_obj.status),
-        "transition_options": transition_options_for_request(user, request_obj),
+        "transition_options": transition_options,
+        "can_change_status": can_change_status,
+        "can_edit_remarks": can_edit_remarks,
+        "can_save_request_updates": can_save_request_updates,
+        "has_blocked_transition_options": blocked_transition_options,
         "is_locked": is_request_locked(request_obj),
         "can_review_documents": can_review_documents(user),
         "has_needs_attention": bool(

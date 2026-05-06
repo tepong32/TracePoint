@@ -72,13 +72,16 @@
             <div class="row">
                 <label for="request-status">Status</label>
                 <div>
-                    <select id="request-status">
+                    <select id="request-status" {% if not can_change_status %}disabled{% endif %}>
                         {% for option in transition_options %}
                             <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
                                 {{ option.label }}{% if option.disabled %} - blocked{% endif %}
                             </option>
                         {% endfor %}
                     </select>
+                    {% if not can_change_status %}
+                        <div class="transition-note">No status transition is available for your current role on this request.</div>
+                    {% endif %}
                     {% for option in transition_options %}
                         {% if option.disabled %}
                             <div class="transition-note">{{ option.reason }}</div>
@@ -88,13 +91,19 @@
             </div>
             <div class="row">
                 <label for="request-remarks">Remarks</label>
-                <div><textarea id="request-remarks" {% if is_locked %}disabled{% endif %}>{{ request_obj.remarks }}</textarea></div>
+                <div><textarea id="request-remarks" {% if not can_edit_remarks %}disabled{% endif %}>{{ request_obj.remarks }}</textarea></div>
             </div>
-            <button id="save-request">Save Request Update</button>
+            {% if not can_edit_remarks and is_locked %}
+                <div class="transition-note">Remarks are read-only once a request reaches a locked lifecycle state.</div>
+            {% endif %}
+            <button id="save-request" {% if not can_save_request_updates %}disabled{% endif %}>Save Request Update</button>
         </section>
 
         <section class="panel">
             <h2>B. Document Review Panel</h2>
+            {% if not can_review_documents and not is_locked %}
+                <div class="transition-note">Your role can view documents here, but document review actions are disabled.</div>
+            {% endif %}
             <h3>Required Documents</h3>
             <ul class="requirements">
                 {% for item in document_review_summary.required %}
@@ -179,7 +188,9 @@
             return response.json();
         }
 
-        document.getElementById('save-request').addEventListener('click', async () => {
+        const saveRequestButton = document.getElementById('save-request');
+        if (saveRequestButton) {
+        saveRequestButton.addEventListener('click', async () => {
             const status = document.getElementById('request-status').value;
             if (status === 'approved' || status === 'claimable' || status === 'claimed' || status === 'closed') {
                 const confirmed = window.confirm(`Confirm ${status} action?`);
@@ -195,6 +206,7 @@
             showFeedback(data.message || 'Request updated successfully.');
             window.location.reload();
         });
+        }
 
         document.querySelectorAll('.js-doc-update').forEach((btn) => {
             btn.addEventListener('click', async (event) => {

@@ -42,14 +42,16 @@
     {% endfor %}
 </ol>
 
-<div class="guidance">
-    <p style="margin-top: 0;"><strong>What to do next</strong></p>
-    <ul>
-        <li>Upload the required supporting documents for your assistance request.</li>
-        <li>If you uploaded the wrong file, upload the same document type again to replace it.</li>
-        <li>Your request status updates automatically after each successful upload.</li>
-    </ul>
-</div>
+{% if can_update_documents %}
+    <div class="guidance">
+        <p style="margin-top: 0;"><strong>What to do next</strong></p>
+        <ul>
+            <li>Upload the required supporting documents for your assistance request.</li>
+            <li>If you uploaded the wrong file, upload the same document type again to replace it.</li>
+            <li>Your request status updates automatically after each successful upload.</li>
+        </ul>
+    </div>
+{% endif %}
 
 <h2>Required documents</h2>
 <section class="requirements">
@@ -84,29 +86,33 @@
             {% if doc.was_replaced_by_citizen %}
                 <br><span class="muted" title="This document was replaced with a newer upload">Replaced with a newer upload</span>
             {% endif %}
-            <br><button type="button" class="btn-delete-doc">Remove</button>
+            {% if can_update_documents %}
+                <br><button type="button" class="btn-delete-doc">Remove</button>
+            {% endif %}
         </li>
     {% empty %}
         <li>No documents uploaded yet.</li>
     {% endfor %}
 </ul>
 
-<h2>Upload or replace a document</h2>
-<form id="upload-form">
-    {% csrf_token %}
-    <label for="id_document_type">Document type</label><br>
-    <select name="document_type" id="id_document_type" required>
-        <option value="">Select a document type</option>
-        {% for value, label in document_type_choices %}
-            <option value="{{ value }}">{{ label }}</option>
-        {% endfor %}
-    </select><br><br>
+{% if can_update_documents %}
+    <h2>Upload or replace a document</h2>
+    <form id="upload-form">
+        {% csrf_token %}
+        <label for="id_document_type">Document type</label><br>
+        <select name="document_type" id="id_document_type" required>
+            <option value="">Select a document type</option>
+            {% for value, label in document_type_choices %}
+                <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select><br><br>
 
-    <label for="id_file">File</label><br>
-    <input type="file" name="file" id="id_file" required><br><br>
+        <label for="id_file">File</label><br>
+        <input type="file" name="file" id="id_file" required><br><br>
 
-    <button type="submit">Upload</button>
-</form>
+        <button type="submit">Upload</button>
+    </form>
+{% endif %}
 
 <p id="upload-status" role="status" aria-live="polite" style="padding: 0.75rem; display: none;"></p>
 
@@ -144,36 +150,38 @@
 
     const csrf = csrftoken || getCookie("csrftoken");
 
-    form.addEventListener("submit", function (ev) {
-        ev.preventDefault();
-        showMessage("", "success");
+    if (form) {
+        form.addEventListener("submit", function (ev) {
+            ev.preventDefault();
+            showMessage("", "success");
 
-        const fileInput = document.getElementById("id_file");
-        if (!fileInput.files.length) {
-            showMessage("Please select a file before uploading.", "error");
-            return;
-        }
+            const fileInput = document.getElementById("id_file");
+            if (!fileInput.files.length) {
+                showMessage("Please select a file before uploading.", "error");
+                return;
+            }
 
-        const fd = new FormData(form);
-        fetch(uploadUrl, {
-            method: "POST",
-            headers: {
-                "X-Requested-With": "XMLHttpRequest",
-                "X-CSRFToken": csrf,
-            },
-            body: fd,
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                showMessage(data.message || "", data.status);
-                if (data.status === "success") {
-                    window.location.reload();
-                }
+            const fd = new FormData(form);
+            fetch(uploadUrl, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "X-CSRFToken": csrf,
+                },
+                body: fd,
             })
-            .catch(function () {
-                showMessage("Upload failed. Please try again.", "error");
-            });
-    });
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    showMessage(data.message || "", data.status);
+                    if (data.status === "success") {
+                        window.location.reload();
+                    }
+                })
+                .catch(function () {
+                    showMessage("Upload failed. Please try again.", "error");
+                });
+        });
+    }
 
     documentList.addEventListener("click", function (ev) {
         if (!ev.target.classList.contains("btn-delete-doc")) return;

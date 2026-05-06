@@ -86,6 +86,22 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertContains(r, "Update your request")
         self.assertNotContains(r, "locked")
 
+    def test_under_review_secure_edit_is_read_only(self):
+        self.req.status = RequestStatus.UNDER_REVIEW
+        self.req.save(update_fields=["status", "updated_at"])
+        url = reverse(
+            "assistance:secure_edit",
+            kwargs={"secure_edit_token": self.req.secure_edit_token},
+        )
+
+        r = self.client.get(url)
+
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Document editing unavailable")
+        self.assertContains(r, "Documents under review")
+        self.assertNotContains(r, "Upload or replace a document")
+        self.assertNotContains(r, 'id="upload-form"', html=False)
+
     def test_needs_attention_upload_returns_to_awaiting_documents_if_incomplete(self):
         self.req.status = RequestStatus.NEEDS_ATTENTION
         self.req.save(update_fields=["status", "updated_at"])

@@ -328,6 +328,9 @@ class StaffWorkflowServiceTests(TestCase):
         self.assertFalse(context["document_review_summary"]["is_complete"])
         self.assertIn("indigency", context["document_review_summary"]["missing"])
         self.assertTrue(context["has_needs_attention"])
+        self.assertTrue(context["can_change_status"])
+        self.assertTrue(context["can_edit_remarks"])
+        self.assertTrue(context["can_save_request_updates"])
 
     def test_queue_metadata_uses_required_document_completeness(self):
         self._document(document_type="birth_cert", status="approved")
@@ -337,6 +340,35 @@ class StaffWorkflowServiceTests(TestCase):
         self.assertTrue(requests[0].has_missing_documents)
         self.assertFalse(requests[0].has_doc_issues)
         self.assertTrue(requests[0].transition_options)
+        self.assertTrue(requests[0].can_change_status)
+
+    def test_locked_request_detail_context_disables_reviewer_actions(self):
+        self.request_obj.status = RequestStatus.APPROVED
+        self.request_obj.is_locked = True
+        self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+
+        context = build_staff_request_detail_context(
+            request_obj=self.request_obj,
+            user=self.reviewer,
+        )
+
+        self.assertFalse(context["can_change_status"])
+        self.assertFalse(context["can_edit_remarks"])
+        self.assertFalse(context["can_save_request_updates"])
+
+    def test_locked_request_detail_context_preserves_fulfillment_transition(self):
+        self.request_obj.status = RequestStatus.APPROVED
+        self.request_obj.is_locked = True
+        self.request_obj.save(update_fields=["status", "is_locked", "updated_at"])
+
+        context = build_staff_request_detail_context(
+            request_obj=self.request_obj,
+            user=self.fulfillment,
+        )
+
+        self.assertTrue(context["can_change_status"])
+        self.assertFalse(context["can_edit_remarks"])
+        self.assertTrue(context["can_save_request_updates"])
 
     def test_timeline_display_items_labels_audit_event_types(self):
         RequestTimeline.objects.create(
