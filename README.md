@@ -55,6 +55,21 @@ The long-term goal is to evolve TracePoint into a **multi-tenant public service 
 
 ---
 
+## Developer Notes
+### Public Continuation Security
+- `secure_edit_token` is the citizen mutation credential for public upload/delete endpoints.
+- The public secure-edit page may render in read-only mode for non-editable states such as `under_review`.
+- Public mutation endpoints must authenticate through the token-validation service and return the standard JSON contract on failure.
+- Invalid public edit-token attempts are logged centrally for lightweight abuse visibility.
+
+### Request Lifecycle Vocabulary
+- Request statuses are centralized in `apps.assistance.services.lifecycle.RequestStatus`.
+- Current v0.5 request lifecycle: `submitted`, `awaiting_documents`, `under_review`, `needs_attention`, `approved`, `claimable`, `claimed`, `closed`.
+- Do not reintroduce legacy request states such as `pending`, `review`, or `denied` into request-level logic.
+- Document review statuses are separate from request statuses and still use values like `pending`, `approved`, `clearer_copy`, and `wrong_file`.
+
+---
+
 ## Product Direction
 TracePoint is being designed as a **reusable GovTech workflow engine** with:
 - service-oriented Django architecture

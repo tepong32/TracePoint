@@ -84,6 +84,9 @@ EDITABLE_PUBLIC_STATES = {
     RequestStatus.AWAITING_DOCUMENTS,
     RequestStatus.NEEDS_ATTENTION,
 }
+# Important: under_review is intentionally excluded. Citizens may still open
+# their secure continuation URL during review, but only in a read-only state
+# unless staff sends the request back for updates.
 
 
 NOTIFICATION_TRIGGER_STATES = {

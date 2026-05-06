@@ -104,6 +104,9 @@ def secure_edit_view(request, secure_edit_token):
         "-uploaded_at"
     )
 
+    # The secure edit URL is a citizen continuation entrypoint, not a guarantee
+    # that document mutation is currently allowed. Requests in states like
+    # under_review should still resolve here, but only as a read-only view.
     if _documents_locked(request_obj) or not progress_context["can_update_documents"]:
         return render(
             request,
@@ -155,6 +158,8 @@ def upload_document_ajax(request, secure_edit_token):
         return _ajax_upload_error("Invalid request.")
 
     try:
+        # Treat the edit token as the public mutation credential for every write.
+        # Possession of a guessed request id or URL shape must never be enough.
         request_obj = get_request_for_public_mutation(
             request=request,
             edit_token=secure_edit_token,
@@ -192,6 +197,8 @@ def delete_document_view(request, secure_edit_token):
         return _ajax_delete_error("Invalid request.")
 
     try:
+        # Keep delete aligned with upload: same token authentication rule,
+        # same centralized invalid-attempt logging, same 403 failure mode.
         request_obj = get_request_for_public_mutation(
             request=request,
             edit_token=secure_edit_token,

@@ -52,6 +52,11 @@ def get_request_for_public_mutation(
 ) -> CitizenRequest:
     """
     Treat the secure edit token as the public authentication credential.
+
+    This function is intentionally stricter than the plain secure-edit page
+    lookup used for read-only rendering. Public mutation endpoints should all
+    come through here so token failures are logged consistently and rejected
+    with the same semantics.
     """
     if not edit_token:
         record_invalid_edit_attempt(
