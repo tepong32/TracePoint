@@ -53,6 +53,17 @@
     </div>
 {% endif %}
 
+{% if request_obj.status == "needs_attention" %}
+    <div class="guidance" style="border-left-color: #c47f00; background: #fff7e6;">
+        <p style="margin-top: 0;"><strong>Needs-attention recovery checklist</strong></p>
+        <ol style="margin-bottom: 0;">
+            <li>Check each required document below for remarks from staff.</li>
+            <li>Re-upload each document marked with issues or missing status.</li>
+            <li>After successful upload, status automatically returns to the review flow based on completeness.</li>
+        </ol>
+    </div>
+{% endif %}
+
 <h2>Required documents</h2>
 <section class="requirements">
     <ul>

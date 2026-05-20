@@ -87,6 +87,86 @@
 
     <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
+    <section style="display:grid; grid-template-columns: 220px minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items:start;">
+        <aside style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fafafa; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;">
+            <h2 style="margin-top: 0;">Navigation</h2>
+            <p class="context-note">Use queues and filters to refine both work columns.</p>
+            <ul style="padding-left: 1rem; margin-bottom: 0;">
+                {% for tab in queue_tabs %}
+                    <li style="margin-bottom: 6px;"><a class="queue-tab {% if tab.active %}queue-tab-active{% endif %}" href="?queue={{ tab.key }}">{{ tab.label }}</a></li>
+                {% endfor %}
+            </ul>
+        </aside>
+
+        <section style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; max-height: calc(100vh - 32px); overflow-y: auto;">
+            <h2 style="margin-top: 0;">New / Intake Requests</h2>
+            <table aria-label="New Intake Requests">
+                <thead>
+                    <tr>
+                        <th>Reference Code</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Flags</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in intake_requests %}
+                        <tr class="{% if req.has_missing_documents %}row-missing-docs{% elif req.has_doc_issues or req.status == 'needs_attention' %}row-needs-attention{% endif %}">
+                            <td>{{ req.tracking_code }}</td>
+                            <td>{{ req.full_name }}</td>
+                            <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                            <td>
+                                {% if req.has_missing_documents %}<span class="flag flag-missing">Missing documents</span>{% endif %}
+                                {% if req.has_doc_issues or req.status == 'needs_attention' %}<span class="flag flag-attention">Needs attention</span>{% endif %}
+                            </td>
+                            <td><a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a></td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5">No intake requests for current filters.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; max-height: calc(100vh - 32px); overflow-y: auto;">
+            <h2 style="margin-top: 0;">Citizen Responded (Back to Review)</h2>
+            <table aria-label="Citizen Responded Requests">
+                <thead>
+                    <tr>
+                        <th>Reference Code</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Quick Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in citizen_responded_requests %}
+                        <tr>
+                            <td>{{ req.tracking_code }}</td>
+                            <td>{{ req.full_name }}</td>
+                            <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                            <td>
+                                <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">Review update</a><br />
+                                <label for="status-responsive-{{ req.id }}">Change status</label>
+                                <select id="status-responsive-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status" {% if not req.can_change_status %}disabled{% endif %}>
+                                    {% for option in req.transition_options %}
+                                        <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
+                                            {{ option.label }}{% if option.disabled %} - blocked{% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4">No citizen-response items in review queue.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </section>
+
+    <h2 style="margin-top: 16px;">All Requests (Filtered)</h2>
     <table aria-label="Assistance Requests">
         <thead>
             <tr>
