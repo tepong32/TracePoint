@@ -84,7 +84,21 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         r = self.client.get(url)
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Update your request")
+        self.assertContains(r, "Needs-attention recovery checklist")
         self.assertNotContains(r, "locked")
+
+    def test_track_page_shows_needs_attention_recovery_loop_guidance(self):
+        self.req.status = RequestStatus.NEEDS_ATTENTION
+        self.req.save(update_fields=["status", "updated_at"])
+        url = reverse(
+            "assistance:track_request",
+            kwargs={"tracking_code": self.req.tracking_code},
+        )
+
+        r = self.client.get(url)
+
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Recovery loop")
 
     def test_under_review_secure_edit_is_read_only(self):
         self.req.status = RequestStatus.UNDER_REVIEW
