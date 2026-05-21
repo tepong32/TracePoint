@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}TracePoint{% endblock %}</title>
+    <style>
+        :root { --bg:#f6f8fb; --card:#fff; --line:#d8dbe3; --text:#1f2937; --muted:#6b7280; --brand:#124fa3; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; color: var(--text); background: var(--bg); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+        .topbar { background: #fff; border-bottom: 1px solid var(--line); }
+        .topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+        .brand { font-weight: 700; text-decoration: none; color: var(--text); }
+        .nav-links { display: flex; gap: 12px; }
+        .nav-links a { color: var(--brand); text-decoration: none; font-weight: 600; }
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a href="/" class="brand">TracePoint</a>
+            <nav class="nav-links">
+                <a href="/">Home</a>
+                <a href="/assistance/staff/dashboard/">Staff Dashboard</a>
+            </nav>
+        </div>
+    </header>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

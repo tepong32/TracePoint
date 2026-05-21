@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}TracePoint | Home{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero { display:grid; gap:12px; margin-bottom: 14px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .cta { display:inline-block; margin-top: 8px; color:#124fa3; text-decoration:none; font-weight:600; }
+    ul { margin: 0; padding-left: 18px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="hero card">
+    <h1 style="margin:0;">Welcome to TracePoint</h1>
+    <p style="margin:0; color:#4b5563;">Citizen request submission, tracking, and staff review workflows.</p>
+</section>
+
+<section class="grid">
+    <article class="card">
+        <h2 style="margin-top:0;">Submit a Request</h2>
+        {% if programs %}
+            <ul>
+            {% for program in programs %}
+                <li><a class="cta" href="/assistance/submit/{{ program.slug }}/">{{ program.name }}</a></li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No active assistance programs available yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="card">
+        <h2 style="margin-top:0;">Track Existing Request</h2>
+        <p>Use your tracking code from submission confirmation.</p>
+        <p style="margin-bottom:0; color:#6b7280;">URL format: <code>/assistance/track/&lt;tracking_code&gt;/</code></p>
+    </article>
+
+    <article class="card">
+        <h2 style="margin-top:0;">Staff Workspace</h2>
+        <p>For authenticated and authorized staff users only.</p>
+        <a class="cta" href="/assistance/staff/dashboard/">Open staff dashboard</a>
+    </article>
+</section>
+{% endblock %}

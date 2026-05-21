@@ -79,15 +79,12 @@ def staff_dashboard_view(request):
     )
     requests_qs = requests_qs.annotate(has_citizen_response=Exists(citizen_response_events))
 
-    status_filter = request.GET.get("status", "").strip()
     active_queue = request.GET.get("queue", "").strip() or default_queue_for_user(request.user)
     program_filter = request.GET.get("program", "").strip()
     start_date = request.GET.get("start_date", "").strip()
     end_date = request.GET.get("end_date", "").strip()
 
-    if status_filter:
-        requests_qs = requests_qs.filter(status=status_filter)
-    elif active_queue in QUEUE_STATUS_MAP and QUEUE_STATUS_MAP[active_queue]:
+    if active_queue in QUEUE_STATUS_MAP and QUEUE_STATUS_MAP[active_queue]:
         requests_qs = requests_qs.filter(status__in=QUEUE_STATUS_MAP[active_queue])
     if program_filter:
         requests_qs = requests_qs.filter(program__slug=program_filter)
@@ -152,7 +149,6 @@ def staff_dashboard_view(request):
         "queue_tabs": _queue_tabs(active_queue),
         "assistance_types": assistance_types,
         "filters": {
-            "status": status_filter,
             "queue": active_queue,
             "program": program_filter,
             "start_date": start_date,
