@@ -40,6 +40,12 @@
 
 {% if can_update_documents %}
     <p><a href="{% url 'assistance:secure_edit' secure_edit_token=request_obj.secure_edit_token %}">Upload or update supporting documents</a></p>
+{% elif request_obj.status == "under_review" %}
+    <p class="muted">Your documents are currently under staff review. If updates are needed, the status will move to Action Needed with new remarks.</p>
+{% endif %}
+
+{% if request_obj.status == "needs_attention" %}
+    <p><strong>Recovery loop:</strong> open the secure edit page, replace documents with issues, and staff review resumes automatically after successful updates.</p>
 {% endif %}
 
 <h2>Progress</h2>

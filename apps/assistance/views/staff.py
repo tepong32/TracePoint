@@ -1,12 +1,13 @@
 from functools import wraps
 
+from django.db.models import Exists, OuterRef
 from django.contrib.auth.views import redirect_to_login
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.assistance.models import CitizenRequest, RequestDocument
+from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
 from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.staff_workflow_service import (
     QUEUE_STATUS_MAP,
@@ -72,16 +73,18 @@ def _document_status_choices():
 @staff_required
 def staff_dashboard_view(request):
     requests_qs = CitizenRequest.objects.select_related("program").filter(is_active=True)
+    citizen_response_events = RequestTimeline.objects.filter(
+        request_id=OuterRef("pk"),
+        event_type="citizen_update_received",
+    )
+    requests_qs = requests_qs.annotate(has_citizen_response=Exists(citizen_response_events))
 
-    status_filter = request.GET.get("status", "").strip()
     active_queue = request.GET.get("queue", "").strip() or default_queue_for_user(request.user)
     program_filter = request.GET.get("program", "").strip()
     start_date = request.GET.get("start_date", "").strip()
     end_date = request.GET.get("end_date", "").strip()
 
-    if status_filter:
-        requests_qs = requests_qs.filter(status=status_filter)
-    elif active_queue in QUEUE_STATUS_MAP and QUEUE_STATUS_MAP[active_queue]:
+    if active_queue in QUEUE_STATUS_MAP and QUEUE_STATUS_MAP[active_queue]:
         requests_qs = requests_qs.filter(status__in=QUEUE_STATUS_MAP[active_queue])
     if program_filter:
         requests_qs = requests_qs.filter(program__slug=program_filter)
@@ -122,14 +125,30 @@ def staff_dashboard_view(request):
     )
 
     requests = apply_staff_queue_metadata(list(requests_qs), request.user)
+    citizen_responded_requests = [
+        req
+        for req in requests
+        if getattr(req, "has_citizen_response", False)
+        and req.status == RequestStatus.UNDER_REVIEW
+    ]
+    intake_requests = [
+        req
+        for req in requests
+        if req.status in {
+            RequestStatus.SUBMITTED,
+            RequestStatus.AWAITING_DOCUMENTS,
+            RequestStatus.NEEDS_ATTENTION,
+        }
+    ]
 
     context = {
         "requests": requests,
+        "intake_requests": intake_requests,
+        "citizen_responded_requests": citizen_responded_requests,
         "status_choices": _request_status_choices(),
         "queue_tabs": _queue_tabs(active_queue),
         "assistance_types": assistance_types,
         "filters": {
-            "status": status_filter,
             "queue": active_queue,
             "program": program_filter,
             "start_date": start_date,

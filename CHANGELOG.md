@@ -1,4 +1,8 @@
 # Changelog
+## [0.5.2] - 2026-05-20
+### ✨ Added
+- Add needs-attention recovery guidance and staff dashboard queue panels
+
 ## [0.5.1] - 2026-04-30
 ### 🧹 Chore
 - Lifecycle engine branch wrap-up
