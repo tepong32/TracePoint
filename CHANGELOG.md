@@ -1,4 +1,8 @@
 # Changelog
+## [0.5.3] - 2026-05-24
+### 🐞 Fixed
+- Patch release for staff dashboard conflict cleanup, citizen UX trim, and secure-edit endpoint hardening
+
 ## [0.5.2] - 2026-05-20
 ### ✨ Added
 - Add needs-attention recovery guidance and staff dashboard queue panels
