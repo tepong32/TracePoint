@@ -1,4 +1,5 @@
 from functools import wraps
+from datetime import date
 
 from django.db.models import Exists, OuterRef
 from django.contrib.auth.views import redirect_to_login
@@ -23,6 +24,17 @@ from apps.assistance.services.staff_workflow_service import (
 
 def _ajax_staff_error(message: str):
     return JsonResponse({"status": "error", "message": message})
+
+
+def _parse_iso_date(raw_value: str) -> str:
+    value = raw_value.strip()
+    if not value:
+        return ""
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return ""
+    return value
 
 
 def _queue_tabs(active_queue: str) -> list[dict]:
@@ -72,7 +84,8 @@ def _document_status_choices():
 
 @staff_required
 def staff_dashboard_view(request):
-    requests_qs = CitizenRequest.objects.select_related("program").filter(is_active=True)
+    base_requests = CitizenRequest.objects.filter(is_active=True)
+    requests_qs = base_requests.select_related("program")
     citizen_response_events = RequestTimeline.objects.filter(
         request_id=OuterRef("pk"),
         event_type="citizen_update_received",
@@ -81,8 +94,8 @@ def staff_dashboard_view(request):
 
     active_queue = request.GET.get("queue", "").strip() or default_queue_for_user(request.user)
     program_filter = request.GET.get("program", "").strip()
-    start_date = request.GET.get("start_date", "").strip()
-    end_date = request.GET.get("end_date", "").strip()
+    start_date = _parse_iso_date(request.GET.get("start_date", ""))
+    end_date = _parse_iso_date(request.GET.get("end_date", ""))
 
     if active_queue in QUEUE_STATUS_MAP and QUEUE_STATUS_MAP[active_queue]:
         requests_qs = requests_qs.filter(status__in=QUEUE_STATUS_MAP[active_queue])
@@ -96,18 +109,17 @@ def staff_dashboard_view(request):
     requests_qs = requests_qs.order_by("-submitted_at")
 
     today = timezone.localdate()
-    base_stats = CitizenRequest.objects.filter(is_active=True)
     summary_stats = {
-        "awaiting_documents_total": base_stats.filter(
+        "awaiting_documents_total": base_requests.filter(
             status=RequestStatus.AWAITING_DOCUMENTS
         ).count(),
-        "under_review_total": base_stats.filter(
+        "under_review_total": base_requests.filter(
             status=RequestStatus.UNDER_REVIEW
         ).count(),
-        "claimable_total": base_stats.filter(
+        "claimable_total": base_requests.filter(
             status=RequestStatus.CLAIMABLE
         ).count(),
-        "approved_today": base_stats.filter(
+        "approved_today": base_requests.filter(
             status__in=(
                 RequestStatus.APPROVED,
                 RequestStatus.CLAIMABLE,
@@ -118,7 +130,7 @@ def staff_dashboard_view(request):
     }
 
     assistance_types = (
-        CitizenRequest.objects.filter(is_active=True)
+        base_requests
         .values_list("program__slug", "program__name")
         .distinct()
         .order_by("program__name")
