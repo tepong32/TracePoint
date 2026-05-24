@@ -337,3 +337,48 @@ class PublicSecureEditEndpointsTests(TransactionTestCase):
         self.assertEqual(data["status"], "error")
         self.assertEqual(data["message"], "Invalid edit code.")
         warning_mock.assert_called_once()
+
+    def test_delete_ajax_locked_returns_403(self):
+        doc = DocumentService.upload_or_replace(
+            citizen_request=self.req,
+            document_type="school_id",
+            uploaded_file=self._pdf(),
+        )
+        self.req.is_locked = True
+        self.req.save(update_fields=["is_locked", "updated_at"])
+        url = reverse(
+            "assistance:delete_document",
+            kwargs={"secure_edit_token": self.req.secure_edit_token},
+        )
+
+        r = self.client.post(
+            url,
+            data={"doc_id": str(doc.id)},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(r.status_code, 403)
+        data = json.loads(r.content.decode())
+        self.assertEqual(data["status"], "error")
+        self.assertIn("locked", data["message"].lower())
+
+    def test_delete_ajax_requires_xhr_header(self):
+        doc = DocumentService.upload_or_replace(
+            citizen_request=self.req,
+            document_type="school_id",
+            uploaded_file=self._pdf(),
+        )
+        url = reverse(
+            "assistance:delete_document",
+            kwargs={"secure_edit_token": self.req.secure_edit_token},
+        )
+
+        r = self.client.post(
+            url,
+            data={"doc_id": str(doc.id)},
+        )
+
+        self.assertEqual(r.status_code, 200)
+        data = json.loads(r.content.decode())
+        self.assertEqual(data["status"], "error")
+        self.assertIn("invalid request", data["message"].lower())

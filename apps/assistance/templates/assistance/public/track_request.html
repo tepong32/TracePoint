@@ -45,7 +45,7 @@
 {% endif %}
 
 {% if request_obj.status == "needs_attention" %}
-    <p><strong>Recovery loop:</strong> open the secure edit page, replace documents with issues, and staff review resumes automatically after successful updates.</p>
+    <p><strong>Recovery loop:</strong> open secure edit, replace flagged documents, then staff review resumes automatically.</p>
 {% endif %}
 
 <h2>Progress</h2>
@@ -82,16 +82,5 @@
         </li>
     {% empty %}
         <li>No documents uploaded yet.</li>
-    {% endfor %}
-</ul>
-
-<h2>Timeline</h2>
-<ul>
-    {% for item in request_obj.timeline.all %}
-        <li>
-            {{ item.created_at }} - {{ item.message }}
-        </li>
-    {% empty %}
-        <li>No timeline yet.</li>
     {% endfor %}
 </ul>
