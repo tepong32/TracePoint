@@ -1,7 +1,13 @@
 {% extends "base.html" %}
+<<<<<<< ours
 
 {% block title %}TracePoint Staff Dashboard{% endblock %}
 
+=======
+
+{% block title %}TracePoint Staff Dashboard{% endblock %}
+
+>>>>>>> theirs
 {% block extra_css %}
 <style>
     h1, h2 { margin-bottom: 8px; }
@@ -37,6 +43,10 @@
 {% block content %}
 <h1>Staff Dashboard</h1>
 <p class="context-note">Tabs are primary workflow lanes; filters are secondary narrowing tools.</p>
+<<<<<<< ours
+<<<<<<< ours
+=======
+>>>>>>> theirs
 
 <section class="stats" aria-label="Summary Statistics">
     <div class="stat-card"><span>Awaiting Documents</span><strong>{{ summary_stats.awaiting_documents_total }}</strong></div>
@@ -44,6 +54,7 @@
     <div class="stat-card"><span>Ready to Claim</span><strong>{{ summary_stats.claimable_total }}</strong></div>
     <div class="stat-card"><span>Approved Today</span><strong>{{ summary_stats.approved_today }}</strong></div>
 </section>
+<<<<<<< ours
 
     <section style="display:grid; grid-template-columns: 220px minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items:start;">
         <aside style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fafafa; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;">
@@ -166,6 +177,36 @@
                 </tr>
             {% empty %}
                 <tr><td colspan="7">No requests match current filters.</td></tr>
+=======
+
+<section class="stats" aria-label="Summary Statistics">
+    <div class="stat-card"><span>Awaiting Documents</span><strong>{{ summary_stats.awaiting_documents_total }}</strong></div>
+    <div class="stat-card"><span>Under Review</span><strong>{{ summary_stats.under_review_total }}</strong></div>
+    <div class="stat-card"><span>Ready to Claim</span><strong>{{ summary_stats.claimable_total }}</strong></div>
+    <div class="stat-card"><span>Approved Today</span><strong>{{ summary_stats.approved_today }}</strong></div>
+</section>
+
+=======
+
+>>>>>>> theirs
+<nav class="queues" aria-label="Role queues">
+    {% for tab in queue_tabs %}
+        <a class="queue-tab {% if tab.active %}queue-tab-active{% endif %}" href="?queue={{ tab.key }}">{{ tab.label }}</a>
+    {% endfor %}
+</nav>
+
+<form method="get" class="filters" aria-label="Request Filters">
+    <input type="hidden" name="queue" value="{{ filters.queue }}" />
+    <div>
+        <label for="program">Assistance Type</label>
+        <select id="program" name="program">
+            <option value="">All</option>
+            {% for slug, name in assistance_types %}
+                <option value="{{ slug }}" {% if filters.program == slug %}selected{% endif %}>{{ name }}</option>
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
             {% endfor %}
         </select>
     </div>
@@ -182,9 +223,15 @@
         <button type="submit">Apply Filters</button>
     </div>
 </form>
+<<<<<<< ours
 
 <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
+=======
+
+<div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+>>>>>>> theirs
 <section style="display:grid; grid-template-columns: 220px minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items:start;">
     <aside style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fafafa; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;">
         <h2 style="margin-top: 0;">Navigation</h2>
@@ -195,6 +242,10 @@
             {% endfor %}
         </ul>
     </aside>
+<<<<<<< ours
+<<<<<<< ours
+=======
+>>>>>>> theirs
 
     <section style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; max-height: calc(100vh - 32px); overflow-y: auto;">
         <h2 style="margin-top: 0;">New / Intake Requests</h2>
@@ -214,6 +265,30 @@
     </section>
 
     <section style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; max-height: calc(100vh - 32px); overflow-y: auto;">
+<<<<<<< ours
+=======
+
+    <section style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; max-height: calc(100vh - 32px); overflow-y: auto;">
+        <h2 style="margin-top: 0;">New / Intake Requests</h2>
+        <table aria-label="New Intake Requests">
+            <thead><tr><th>Reference Code</th><th>Name</th><th>Status</th><th>Flags</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for req in intake_requests %}
+                    <tr class="{% if req.has_missing_documents %}row-missing-docs{% elif req.has_doc_issues or req.status == 'needs_attention' %}row-needs-attention{% endif %}">
+                        <td>{{ req.tracking_code }}</td><td>{{ req.full_name }}</td>
+                        <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                        <td>{% if req.has_missing_documents %}<span class="flag flag-missing">Missing documents</span>{% endif %}{% if req.has_doc_issues or req.status == 'needs_attention' %}<span class="flag flag-attention">Needs attention</span>{% endif %}</td>
+                        <td><a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a></td>
+                    </tr>
+                {% empty %}<tr><td colspan="5">No intake requests for current filters.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section style="border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; max-height: calc(100vh - 32px); overflow-y: auto;">
+>>>>>>> theirs
+=======
+>>>>>>> theirs
         <h2 style="margin-top: 0;">Citizen Responded (Back to Review)</h2>
         <table aria-label="Citizen Responded Requests">
             <thead><tr><th>Reference Code</th><th>Name</th><th>Status</th><th>Quick Actions</th></tr></thead>
