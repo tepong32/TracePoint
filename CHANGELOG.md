@@ -1,4 +1,8 @@
 # Changelog
+## [0.5.4] - 2026-05-24
+### 🧹 Chore
+- Patch release for dashboard query optimization, filter regression coverage, and v0.5 finalization checks
+
 ## [0.5.3] - 2026-05-24
 ### 🐞 Fixed
 - Patch release for staff dashboard conflict cleanup, citizen UX trim, and secure-edit endpoint hardening
