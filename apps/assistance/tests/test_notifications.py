@@ -12,6 +12,7 @@ from apps.assistance.services.notifications import (
     get_notification_adapters,
     prepare_status_notification,
 )
+from apps.assistance.services.lifecycle_service import transition_request_status
 from apps.assistance.services.request_service import RequestSubmissionService
 
 
@@ -131,5 +132,169 @@ class NotificationPrepTests(TestCase):
                 request=self.req,
                 event_type="notification",
                 message__contains="Notification adapter failed",
+            ).exists()
+        )
+
+    @override_settings(TRACEPOINT_NOTIFICATION_CHANNELS=("email", "sms"))
+    def test_dispatch_email_failure_records_error_and_sms_continues(self):
+        class ExplodingEmailAdapter:
+            channel = "email"
+
+            def send(self, trigger):
+                raise RuntimeError("smtp offline")
+
+        class PassingSmsAdapter:
+            channel = "sms"
+
+            def send(self, trigger):
+                return NotificationResult("sms", "success", "SMS queued.")
+
+        trigger = prepare_status_notification(
+            self.req,
+            status=RequestStatus.CLAIMABLE,
+        )
+
+        from apps.assistance.services import notifications
+
+        original_adapters = notifications.NOTIFICATION_ADAPTERS
+        notifications.NOTIFICATION_ADAPTERS = {
+            "email": ExplodingEmailAdapter,
+            "sms": PassingSmsAdapter,
+        }
+        with patch("apps.assistance.services.notifications.logger.exception"):
+            try:
+                results = dispatch_notification(trigger, citizen_request=self.req)
+            finally:
+                notifications.NOTIFICATION_ADAPTERS = original_adapters
+
+        self.assertEqual([result.channel for result in results], ["email", "sms"])
+        self.assertEqual([result.status for result in results], ["error", "success"])
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="channel=email; status=error",
+            ).exists()
+        )
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="RuntimeError: smtp offline",
+            ).exists()
+        )
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="channel=sms; status=success",
+            ).exists()
+        )
+
+    @override_settings(TRACEPOINT_NOTIFICATION_CHANNELS=("email", "sms"))
+    def test_dispatch_sms_failure_records_error_and_email_continues(self):
+        class PassingEmailAdapter:
+            channel = "email"
+
+            def send(self, trigger):
+                return NotificationResult("email", "success", "Email sent.")
+
+        class ExplodingSmsAdapter:
+            channel = "sms"
+
+            def send(self, trigger):
+                raise RuntimeError("gateway down")
+
+        trigger = prepare_status_notification(
+            self.req,
+            status=RequestStatus.CLAIMABLE,
+        )
+
+        from apps.assistance.services import notifications
+
+        original_adapters = notifications.NOTIFICATION_ADAPTERS
+        notifications.NOTIFICATION_ADAPTERS = {
+            "email": PassingEmailAdapter,
+            "sms": ExplodingSmsAdapter,
+        }
+        with patch("apps.assistance.services.notifications.logger.exception"):
+            try:
+                results = dispatch_notification(trigger, citizen_request=self.req)
+            finally:
+                notifications.NOTIFICATION_ADAPTERS = original_adapters
+
+        self.assertEqual([result.channel for result in results], ["email", "sms"])
+        self.assertEqual([result.status for result in results], ["success", "error"])
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="channel=email; status=success",
+            ).exists()
+        )
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="channel=sms; status=error",
+            ).exists()
+        )
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="RuntimeError: gateway down",
+            ).exists()
+        )
+
+    @override_settings(TRACEPOINT_NOTIFICATION_CHANNELS=("email", "sms"))
+    def test_lifecycle_transition_continues_even_if_all_adapters_fail(self):
+        class ExplodingEmailAdapter:
+            channel = "email"
+
+            def send(self, trigger):
+                raise RuntimeError("smtp offline")
+
+        class ExplodingSmsAdapter:
+            channel = "sms"
+
+            def send(self, trigger):
+                raise RuntimeError("gateway down")
+
+        self.req.status = RequestStatus.APPROVED
+        self.req.is_locked = True
+        self.req.save(update_fields=["status", "is_locked", "updated_at"])
+
+        from apps.assistance.services import notifications
+
+        original_adapters = notifications.NOTIFICATION_ADAPTERS
+        notifications.NOTIFICATION_ADAPTERS = {
+            "email": ExplodingEmailAdapter,
+            "sms": ExplodingSmsAdapter,
+        }
+        with patch("apps.assistance.services.notifications.logger.exception"):
+            try:
+                transition_request_status(
+                    self.req,
+                    new_status=RequestStatus.CLAIMABLE,
+                )
+            finally:
+                notifications.NOTIFICATION_ADAPTERS = original_adapters
+
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.status, RequestStatus.CLAIMABLE)
+        self.assertTrue(self.req.is_locked)
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="channel=email; status=error",
+            ).exists()
+        )
+        self.assertTrue(
+            RequestTimeline.objects.filter(
+                request=self.req,
+                event_type="notification",
+                message__contains="channel=sms; status=error",
             ).exists()
         )

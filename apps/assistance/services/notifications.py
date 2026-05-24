@@ -216,6 +216,17 @@ def _record_notification_result(
     )
 
 
+def _adapter_failure_result(adapter: NotificationAdapter, exc: Exception) -> NotificationResult:
+    return NotificationResult(
+        adapter.channel,
+        "error",
+        (
+            "Notification adapter failed: "
+            f"{exc.__class__.__name__}: {exc}"
+        ),
+    )
+
+
 def dispatch_notification(
     trigger: NotificationTrigger | None,
     *,
@@ -233,11 +244,7 @@ def dispatch_notification(
         try:
             result = adapter.send(trigger)
         except Exception as exc:
-            result = NotificationResult(
-                adapter.channel,
-                "error",
-                f"Notification adapter failed: {exc}",
-            )
+            result = _adapter_failure_result(adapter, exc)
             logger.exception("Notification adapter failed.")
 
         results.append(result)
