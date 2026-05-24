@@ -37,6 +37,7 @@
         .req-missing, .req-issue { color: #8a1a1a; }
         .req-approved { color: #245f34; }
         .transition-note { color: #6b7280; font-size: 12px; margin-top: 4px; }
+        .action-hint { margin: 8px 0 0; padding-left: 18px; color: #6b7280; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -72,21 +73,29 @@
             <div class="row">
                 <label for="request-status">Status</label>
                 <div>
-                    <select id="request-status" {% if not can_change_status %}disabled{% endif %}>
-                        {% for option in transition_options %}
-                            <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
-                                {{ option.label }}{% if option.disabled %} - blocked{% endif %}
-                            </option>
-                        {% endfor %}
-                    </select>
+                    {% if can_change_status %}
+                        <select id="request-status">
+                            {% for option in transition_options %}
+                                <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>
+                                    {{ option.label }}{% if option.disabled %} - blocked{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    {% else %}
+                        <div><strong>{{ request_obj.get_status_display }}</strong></div>
+                    {% endif %}
                     {% if not can_change_status %}
                         <div class="transition-note">No status transition is available for your current role on this request.</div>
                     {% endif %}
-                    {% for option in transition_options %}
-                        {% if option.disabled %}
-                            <div class="transition-note">{{ option.reason }}</div>
-                        {% endif %}
-                    {% endfor %}
+                    {% if has_blocked_transition_options %}
+                        <ul class="action-hint">
+                            {% for option in transition_options %}
+                                {% if option.disabled and option.reason %}
+                                    <li>{{ option.reason }}</li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
                 </div>
             </div>
             <div class="row">
@@ -96,7 +105,11 @@
             {% if not can_edit_remarks and is_locked %}
                 <div class="transition-note">Remarks are read-only once a request reaches a locked lifecycle state.</div>
             {% endif %}
-            <button id="save-request" {% if not can_save_request_updates %}disabled{% endif %}>Save Request Update</button>
+            {% if can_save_request_updates %}
+                <button id="save-request">Save Request Update</button>
+            {% else %}
+                <div class="transition-note">No request updates are available for this role at the current lifecycle state.</div>
+            {% endif %}
         </section>
 
         <section class="panel">
