@@ -1,30 +1,15 @@
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.assistance.models.models import (
-    AssistanceProgram,
-    CitizenRequest,
-    RequestDocument,
-)
-from apps.assistance.services.document_service import DocumentService, DocumentServiceError
-from apps.assistance.services.lifecycle_rules import can_citizen_upload_documents, is_request_locked
-from apps.assistance.services.public_access_service import (
-    InvalidPublicEditToken,
-    get_request_for_public_mutation,
-)
+from apps.assistance.models.models import AssistanceProgram, CitizenRequest, RequestDocument
 from apps.assistance.services.public_progress_service import build_public_progress_context
-from apps.assistance.services.request_service import RequestSubmissionService
-
-
-def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
-    return get_object_or_404(
-        CitizenRequest.objects.select_related("program", "citizen"),
-        secure_edit_token=secure_edit_token,
-        is_active=True,
-    )
-
+from apps.assistance.services.public_request_service import (
+    PublicMutationError,
+    PublicRequestService,
+)
 
 
 def submit_request_view(request, program_slug):
@@ -39,21 +24,20 @@ def submit_request_view(request, program_slug):
         email = request.POST.get("email", "").strip()
         phone = request.POST.get("phone", "").strip()
 
-        # beginner-friendly safety validation first
-        if not full_name or not email or not phone:
-            messages.error(request, "Please complete all required fields.")
+        try:
+            request_obj = PublicRequestService.submit_request(
+                program=program,
+                full_name=full_name,
+                email=email,
+                phone=phone,
+            )
+        except ValidationError as exc:
+            messages.error(request, str(exc))
             return render(
                 request,
                 "assistance/public/submit_request.html",
                 {"program": program},
             )
-
-        request_obj = RequestSubmissionService.submit_request(
-            program=program,
-            full_name=full_name,
-            email=email,
-            phone=phone,
-        )
 
         messages.success(
             request,
@@ -79,9 +63,7 @@ def track_request_view(request, tracking_code):
         is_active=True,
     )
 
-    documents = (
-        request_obj.documents.filter(is_removed=False).order_by("-uploaded_at")
-    )
+    documents = request_obj.documents.filter(is_removed=False).order_by("-uploaded_at")
 
     return render(
         request,
@@ -95,23 +77,18 @@ def track_request_view(request, tracking_code):
 
 
 def secure_edit_view(request, secure_edit_token):
-    request_obj = _citizen_request_for_secure_edit(secure_edit_token)
-    progress_context = build_public_progress_context(request_obj)
-    documents = request_obj.documents.filter(is_removed=False).order_by(
-        "-uploaded_at"
+    secure_edit_state = PublicRequestService.get_secure_edit_state(
+        secure_edit_token=secure_edit_token,
     )
 
-    # The secure edit URL is a citizen continuation entrypoint, not a guarantee
-    # that document mutation is currently allowed. Requests in states like
-    # under_review should still resolve here, but only as a read-only view.
-    if is_request_locked(request_obj) or not progress_context["can_update_documents"]:
+    if secure_edit_state.is_locked_view:
         return render(
             request,
             "assistance/public/secure_edit_locked.html",
             {
-                "request_obj": request_obj,
-                "documents": documents,
-                **progress_context,
+                "request_obj": secure_edit_state.request_obj,
+                "documents": secure_edit_state.documents,
+                **secure_edit_state.progress_context,
             },
         )
 
@@ -119,10 +96,10 @@ def secure_edit_view(request, secure_edit_token):
         request,
         "assistance/public/secure_edit.html",
         {
-            "request_obj": request_obj,
-            "documents": documents,
+            "request_obj": secure_edit_state.request_obj,
+            "documents": secure_edit_state.documents,
             "document_type_choices": RequestDocument.DOCUMENT_TYPE_CHOICES,
-            **progress_context,
+            **secure_edit_state.progress_context,
         },
     )
 
@@ -155,33 +132,14 @@ def upload_document_ajax(request, secure_edit_token):
         return _ajax_upload_error("Invalid request.")
 
     try:
-        # Treat the edit token as the public mutation credential for every write.
-        # Possession of a guessed request id or URL shape must never be enough.
-        request_obj = get_request_for_public_mutation(
+        PublicRequestService.upload_document(
             request=request,
-            edit_token=secure_edit_token,
-            action="upload_document",
+            secure_edit_token=secure_edit_token,
         )
-    except InvalidPublicEditToken as exc:
-        return _ajax_upload_forbidden(str(exc))
-
-    if not can_citizen_upload_documents(request_obj):
-        return _ajax_upload_forbidden("This request is locked.")
-
-    doc_type = request.POST.get("document_type", "").strip()
-    uploaded_file = request.FILES.get("file")
-
-    if not doc_type or not uploaded_file:
-        return _ajax_upload_error("Missing file or document type.")
-
-    try:
-        DocumentService.upload_for_citizen(
-            citizen_request=request_obj,
-            document_type=doc_type,
-            uploaded_file=uploaded_file,
-        )
-    except DocumentServiceError as e:
-        return _ajax_upload_error(str(e))
+    except PublicMutationError as exc:
+        if exc.forbidden:
+            return _ajax_upload_forbidden(exc.message)
+        return _ajax_upload_error(exc.message)
 
     return JsonResponse(
         {"status": "success", "message": "File uploaded successfully."},
@@ -194,32 +152,14 @@ def delete_document_view(request, secure_edit_token):
         return _ajax_delete_error("Invalid request.")
 
     try:
-        # Keep delete aligned with upload: same token authentication rule,
-        # same centralized invalid-attempt logging, same 403 failure mode.
-        request_obj = get_request_for_public_mutation(
+        PublicRequestService.delete_document(
             request=request,
-            edit_token=secure_edit_token,
-            action="delete_document",
+            secure_edit_token=secure_edit_token,
         )
-    except InvalidPublicEditToken as exc:
-        return _ajax_delete_forbidden(str(exc))
-
-    if not can_citizen_upload_documents(request_obj):
-        return _ajax_delete_forbidden("Request is locked.")
-
-    doc_id_raw = request.POST.get("doc_id")
-    try:
-        doc_id = int(doc_id_raw)
-    except (TypeError, ValueError):
-        return _ajax_delete_error("Document not found.")
-
-    try:
-        DocumentService.delete_for_citizen(
-            citizen_request=request_obj,
-            document_id=doc_id,
-        )
-    except DocumentServiceError as e:
-        return _ajax_delete_error(str(e))
+    except PublicMutationError as exc:
+        if exc.forbidden:
+            return _ajax_delete_forbidden(exc.message)
+        return _ajax_delete_error(exc.message)
 
     return JsonResponse(
         {"status": "success", "message": "Document deleted."},
