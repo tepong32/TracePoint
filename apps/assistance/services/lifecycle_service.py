@@ -1,9 +1,10 @@
 from apps.assistance.models.models import CitizenRequest, RequestTimeline
 from apps.assistance.services.evaluator import evaluate_request_completeness
-from apps.assistance.services.lifecycle import (
-    RequestStatus,
-    can_transition_status,
-    is_locked_status,
+from apps.assistance.services.lifecycle import RequestStatus
+from apps.assistance.services.lifecycle_rules import (
+    is_request_locked,
+    validate_transition_or_raise,
+    LifecycleValidationError,
 )
 from apps.assistance.services.notifications import (
     dispatch_notification,
@@ -66,13 +67,13 @@ def transition_request_status(
     if old_status == new_status:
         return
 
-    if not can_transition_status(old_status, new_status):
-        raise LifecycleTransitionError(
-            f"Invalid status transition: {old_status} to {new_status}."
-        )
+    try:
+        validate_transition_or_raise(current_status=old_status, new_status=new_status)
+    except LifecycleValidationError as exc:
+        raise LifecycleTransitionError(str(exc)) from exc
 
     request_obj.status = new_status
-    request_obj.is_locked = is_locked_status(new_status)
+    request_obj.is_locked = is_request_locked(request_obj)
     request_obj.save(update_fields=["status", "is_locked", "updated_at"])
     if message:
         RequestTimeline.objects.create(
@@ -124,7 +125,7 @@ def apply_auto_status_transition(
         return
 
     request_obj.status = new_status
-    request_obj.is_locked = is_locked_status(new_status)
+    request_obj.is_locked = is_request_locked(request_obj)
     request_obj.save(update_fields=["status", "is_locked", "updated_at"])
     _create_status_change_log(
         request_obj=request_obj,

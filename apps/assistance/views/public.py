@@ -9,7 +9,7 @@ from apps.assistance.models.models import (
     RequestDocument,
 )
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
-from apps.assistance.services.lifecycle import is_locked_status
+from apps.assistance.services.lifecycle_rules import can_citizen_upload_documents, is_request_locked
 from apps.assistance.services.public_access_service import (
     InvalidPublicEditToken,
     get_request_for_public_mutation,
@@ -25,9 +25,6 @@ def _citizen_request_for_secure_edit(secure_edit_token: str) -> CitizenRequest:
         is_active=True,
     )
 
-
-def _documents_locked(request_obj: CitizenRequest) -> bool:
-    return request_obj.is_locked or is_locked_status(request_obj.status)
 
 
 def submit_request_view(request, program_slug):
@@ -107,7 +104,7 @@ def secure_edit_view(request, secure_edit_token):
     # The secure edit URL is a citizen continuation entrypoint, not a guarantee
     # that document mutation is currently allowed. Requests in states like
     # under_review should still resolve here, but only as a read-only view.
-    if _documents_locked(request_obj) or not progress_context["can_update_documents"]:
+    if is_request_locked(request_obj) or not progress_context["can_update_documents"]:
         return render(
             request,
             "assistance/public/secure_edit_locked.html",
@@ -168,7 +165,7 @@ def upload_document_ajax(request, secure_edit_token):
     except InvalidPublicEditToken as exc:
         return _ajax_upload_forbidden(str(exc))
 
-    if _documents_locked(request_obj):
+    if not can_citizen_upload_documents(request_obj):
         return _ajax_upload_forbidden("This request is locked.")
 
     doc_type = request.POST.get("document_type", "").strip()
@@ -207,7 +204,7 @@ def delete_document_view(request, secure_edit_token):
     except InvalidPublicEditToken as exc:
         return _ajax_delete_forbidden(str(exc))
 
-    if _documents_locked(request_obj):
+    if not can_citizen_upload_documents(request_obj):
         return _ajax_delete_forbidden("Request is locked.")
 
     doc_id_raw = request.POST.get("doc_id")

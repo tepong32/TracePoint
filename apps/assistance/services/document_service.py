@@ -7,10 +7,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
-from apps.assistance.services.lifecycle import (
-    is_locked_status,
-    is_public_editable,
-    next_status_after_citizen_update,
+from apps.assistance.services.lifecycle import next_status_after_citizen_update
+from apps.assistance.services.lifecycle_rules import (
+    can_citizen_edit_request,
+    is_request_locked,
 )
 from apps.assistance.services.lifecycle_service import apply_auto_status_transition
 from apps.assistance.utils import validate_file_upload
@@ -31,9 +31,9 @@ def _allowed_document_types() -> frozenset[str]:
 def _assert_request_allows_document_changes(citizen_request: CitizenRequest) -> None:
     if not citizen_request.is_active:
         raise DocumentServiceError("This request is no longer active.")
-    if citizen_request.is_locked or is_locked_status(citizen_request.status):
+    if is_request_locked(citizen_request):
         raise DocumentServiceError("This request is locked and cannot be changed.")
-    if not is_public_editable(citizen_request.status):
+    if not can_citizen_edit_request(citizen_request):
         raise DocumentServiceError("This request is not accepting document changes.")
 
 
@@ -71,7 +71,7 @@ def _return_to_review_after_citizen_update(
         return
 
     citizen_request.status = next_status
-    citizen_request.is_locked = is_locked_status(next_status)
+    citizen_request.is_locked = is_request_locked(citizen_request)
     citizen_request.save(update_fields=["status", "is_locked", "updated_at"])
     _timeline_event(
         citizen_request=citizen_request,
