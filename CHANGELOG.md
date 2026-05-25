@@ -1,4 +1,13 @@
 # Changelog
+## [0.6.0] - 2026-05-25
+### 🔨 Refactor
+Minor release: consolidate lifecycle and public service orchestration refactors.
+- Centralized lifecycle_rules enforcement for locked-state checks, valid transition validation, and status-choice-backed lifecycle guards.
+- Advanced thin-view architecture by extracting PublicRequestService to orchestrate secure-edit state, upload/delete mutations, and request submission validation.
+- Centralized mutation orchestration through services while preserving existing AJAX response contracts, lifecycle hooks, request/document logging, and secure token authorization behavior.
+- Reinforced dependency-flow governance via one-directional layering (views -> services -> policies/models) with explicit service/policy separation and no circular service imports.
+- Preserved lifecycle/security behavior and backward-compatible route/template/view contracts during service-layer extraction.
+
 ## [0.5.4] - 2026-05-24
 ### 🧹 Chore
 - Patch release for dashboard query optimization, filter regression coverage, and v0.5 finalization checks
