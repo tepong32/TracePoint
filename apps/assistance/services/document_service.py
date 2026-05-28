@@ -13,6 +13,10 @@ from apps.assistance.services.lifecycle_rules import (
     is_request_locked,
 )
 from apps.assistance.services.lifecycle_service import apply_auto_status_transition
+from apps.assistance.services.lifecycle_service import (
+    LifecycleTransitionError,
+    transition_request_status,
+)
 from apps.assistance.utils import validate_file_upload
 
 logger = logging.getLogger(__name__)
@@ -70,9 +74,23 @@ def _return_to_review_after_citizen_update(
     if next_status == citizen_request.status:
         return
 
-    citizen_request.status = next_status
-    citizen_request.is_locked = is_request_locked(citizen_request)
-    citizen_request.save(update_fields=["status", "is_locked", "updated_at"])
+    try:
+        transition_request_status(
+            citizen_request,
+            new_status=next_status,
+        )
+    except LifecycleTransitionError:
+        logger.exception(
+            "Citizen update lifecycle transition failed for request %s.",
+            citizen_request.id,
+        )
+        RequestTimeline.objects.create(
+            request=citizen_request,
+            event_type="workflow_error",
+            message="Citizen update lifecycle transition failed.",
+            created_by=created_by,
+        )
+        return
     _timeline_event(
         citizen_request=citizen_request,
         event_type="citizen_update_received",

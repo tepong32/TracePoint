@@ -6,10 +6,7 @@ from apps.assistance.services.lifecycle_rules import (
     validate_transition_or_raise,
     LifecycleValidationError,
 )
-from apps.assistance.services.notifications import (
-    dispatch_notification,
-    prepare_status_notification,
-)
+from apps.assistance.services.notification_service import NotificationService
 
 
 class LifecycleTransitionError(Exception):
@@ -90,9 +87,9 @@ def transition_request_status(
             actor=actor,
         )
 
-    dispatch_notification(
-        prepare_status_notification(request_obj, status=new_status),
+    NotificationService.notify_request_status_change(
         citizen_request=request_obj,
+        status=new_status,
     )
 
 
@@ -124,15 +121,12 @@ def apply_auto_status_transition(
     if new_status == request_obj.status and new_status == old_status:
         return
 
-    request_obj.status = new_status
-    request_obj.is_locked = is_request_locked(request_obj)
-    request_obj.save(update_fields=["status", "is_locked", "updated_at"])
-    _create_status_change_log(
-        request_obj=request_obj,
-        old_status=old_status,
+    transition_request_status(
+        request_obj,
         new_status=new_status,
-    )
-    dispatch_notification(
-        prepare_status_notification(request_obj, status=new_status),
-        citizen_request=request_obj,
+        message=(
+            "action_type=status_change; "
+            f"old_status={old_status}; "
+            f"new_status={new_status}"
+        ),
     )

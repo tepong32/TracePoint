@@ -16,10 +16,7 @@ from apps.assistance.services.lifecycle_service import (
     apply_auto_status_transition,
     transition_request_status,
 )
-from apps.assistance.services.notifications import (
-    dispatch_notification,
-    prepare_document_review_notification,
-)
+from apps.assistance.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -427,9 +424,8 @@ def review_document_by_staff(
         ),
         user=user,
     )
-    dispatch_notification(
-        prepare_document_review_notification(document),
-        citizen_request=document.request,
+    NotificationService.notify_document_review_result(
+        document=document,
     )
 
     try:

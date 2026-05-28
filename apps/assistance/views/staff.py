@@ -10,6 +10,11 @@ from django.views.decorators.http import require_POST
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
 from apps.assistance.services.lifecycle import RequestStatus
+from apps.assistance.services.mutation_guard import (
+    MutationGuardError,
+    ensure_staff_can_review_document,
+    require_ajax,
+)
 from apps.assistance.services.staff_workflow_service import (
     QUEUE_STATUS_MAP,
     StaffWorkflowError,
@@ -194,8 +199,10 @@ def staff_request_detail_view(request, request_id):
 @require_POST
 @staff_required
 def staff_update_request_ajax(request, request_id):
-    if request.headers.get("x-requested-with") != "XMLHttpRequest":
-        return _ajax_staff_error("Invalid request.")
+    try:
+        require_ajax(request)
+    except MutationGuardError as exc:
+        return _ajax_staff_error(exc.message)
 
     request_obj = get_object_or_404(CitizenRequest, id=request_id, is_active=True)
 
@@ -224,14 +231,23 @@ def staff_update_request_ajax(request, request_id):
 @require_POST
 @staff_required
 def mswd_update_document_ajax(request, document_id):
-    if request.headers.get("x-requested-with") != "XMLHttpRequest":
-        return _ajax_staff_error("Invalid request.")
+    try:
+        require_ajax(request)
+    except MutationGuardError as exc:
+        return _ajax_staff_error(exc.message)
 
     document = get_object_or_404(
         RequestDocument.objects.select_related("request"),
         id=document_id,
         is_removed=False,
     )
+    try:
+        ensure_staff_can_review_document(
+            document=document,
+            user=request.user,
+        )
+    except StaffWorkflowError as e:
+        return _ajax_staff_error(str(e))
 
     new_status = request.POST.get("status", "").strip()
     if not new_status:
@@ -262,8 +278,10 @@ def mswd_update_document_ajax(request, document_id):
 @require_POST
 @staff_required
 def staff_update_status_inline(request, request_id):
-    if request.headers.get("x-requested-with") != "XMLHttpRequest":
-        return _ajax_staff_error("Invalid request.")
+    try:
+        require_ajax(request)
+    except MutationGuardError as exc:
+        return _ajax_staff_error(exc.message)
 
     request_obj = get_object_or_404(CitizenRequest, id=request_id, is_active=True)
 
