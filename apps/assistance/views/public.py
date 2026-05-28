@@ -10,6 +10,7 @@ from apps.assistance.services.public_request_service import (
     PublicMutationError,
     PublicRequestService,
 )
+from apps.assistance.services.mutation_guard import MutationGuardError, require_ajax
 
 
 def submit_request_view(request, program_slug):
@@ -128,8 +129,10 @@ def _ajax_delete_forbidden(message: str):
 
 @require_POST
 def upload_document_ajax(request, secure_edit_token):
-    if request.headers.get("x-requested-with") != "XMLHttpRequest":
-        return _ajax_upload_error("Invalid request.")
+    try:
+        require_ajax(request)
+    except MutationGuardError as exc:
+        return _ajax_upload_error(exc.message)
 
     try:
         PublicRequestService.upload_document(
@@ -148,8 +151,10 @@ def upload_document_ajax(request, secure_edit_token):
 
 @require_POST
 def delete_document_view(request, secure_edit_token):
-    if request.headers.get("x-requested-with") != "XMLHttpRequest":
-        return _ajax_delete_error("Invalid request.")
+    try:
+        require_ajax(request)
+    except MutationGuardError as exc:
+        return _ajax_delete_error(exc.message)
 
     try:
         PublicRequestService.delete_document(

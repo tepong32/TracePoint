@@ -7,6 +7,11 @@ from django.shortcuts import get_object_or_404
 from apps.assistance.models import CitizenRequest, RequestDocument
 from apps.assistance.services.document_service import DocumentService, DocumentServiceError
 from apps.assistance.services.lifecycle_rules import can_citizen_upload_documents, is_request_locked
+from apps.assistance.services.mutation_guard import (
+    MutationGuardError,
+    ensure_public_request_mutable,
+    parse_int_or_error,
+)
 from apps.assistance.services.public_access_service import (
     InvalidPublicEditToken,
     get_request_for_public_mutation,
@@ -80,8 +85,10 @@ class PublicRequestService:
         except InvalidPublicEditToken as exc:
             raise PublicMutationError(str(exc), forbidden=True) from exc
 
-        if not can_citizen_upload_documents(request_obj):
-            raise PublicMutationError("This request is locked.", forbidden=True)
+        try:
+            ensure_public_request_mutable(request_obj)
+        except MutationGuardError as exc:
+            raise PublicMutationError(exc.message, forbidden=exc.forbidden) from exc
 
         doc_type = request.POST.get("document_type", "").strip()
         uploaded_file = request.FILES.get("file")
@@ -109,14 +116,18 @@ class PublicRequestService:
         except InvalidPublicEditToken as exc:
             raise PublicMutationError(str(exc), forbidden=True) from exc
 
-        if not can_citizen_upload_documents(request_obj):
-            raise PublicMutationError("Request is locked.", forbidden=True)
-
-        doc_id_raw = request.POST.get("doc_id")
         try:
-            doc_id = int(doc_id_raw)
-        except (TypeError, ValueError) as exc:
-            raise PublicMutationError("Document not found.") from exc
+            ensure_public_request_mutable(request_obj)
+        except MutationGuardError as exc:
+            raise PublicMutationError(exc.message, forbidden=exc.forbidden) from exc
+
+        try:
+            doc_id = parse_int_or_error(
+                request.POST.get("doc_id"),
+                message="Document not found.",
+            )
+        except MutationGuardError as exc:
+            raise PublicMutationError(exc.message) from exc
 
         try:
             DocumentService.delete_for_citizen(
