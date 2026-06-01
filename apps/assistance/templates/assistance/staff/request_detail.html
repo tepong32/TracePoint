@@ -52,7 +52,7 @@
     </section>
 
     {% if is_locked %}
-        <div class="locked">This request is locked (approved/claimable/claimed/closed). Editing is disabled.</div>
+        <div class="locked">This request is locked ({{ locked_status_labels|join:", " }}). Editing is disabled.</div>
     {% endif %}
     {% if has_needs_attention %}
         <div class="attention">Needs Attention: missing documents or reviewed documents with issues should be resolved before approval.</div>
@@ -174,7 +174,14 @@
         </section>
     </div>
 
+    {{ request_status_confirmation_values|json_script:"request-status-confirmation-values" }}
+
     <script>
+        const requestStatusConfirmationValues = JSON.parse(
+            document.getElementById('request-status-confirmation-values').textContent
+        );
+        const statusesRequiringConfirmation = new Set(requestStatusConfirmationValues);
+
         function getCookie(name) {
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
@@ -203,22 +210,22 @@
 
         const saveRequestButton = document.getElementById('save-request');
         if (saveRequestButton) {
-        saveRequestButton.addEventListener('click', async () => {
-            const status = document.getElementById('request-status').value;
-            if (status === 'approved' || status === 'claimable' || status === 'claimed' || status === 'closed') {
-                const confirmed = window.confirm(`Confirm ${status} action?`);
-                if (!confirmed) return;
-            }
+            saveRequestButton.addEventListener('click', async () => {
+                const status = document.getElementById('request-status').value;
+                if (statusesRequiringConfirmation.has(status)) {
+                    const confirmed = window.confirm(`Confirm ${status} action?`);
+                    if (!confirmed) return;
+                }
 
-            const remarks = document.getElementById('request-remarks').value;
-            const data = await postForm('/assistance/staff/request/{{ request_obj.id }}/update/ajax/', { status, remarks });
-            if (data.status !== 'success') {
-                showFeedback(data.message || 'Unable to update request.', false);
-                return;
-            }
-            showFeedback(data.message || 'Request updated successfully.');
-            window.location.reload();
-        });
+                const remarks = document.getElementById('request-remarks').value;
+                const data = await postForm('/assistance/staff/request/{{ request_obj.id }}/update/ajax/', { status, remarks });
+                if (data.status !== 'success') {
+                    showFeedback(data.message || 'Unable to update request.', false);
+                    return;
+                }
+                showFeedback(data.message || 'Request updated successfully.');
+                window.location.reload();
+            });
         }
 
         document.querySelectorAll('.js-doc-update').forEach((btn) => {

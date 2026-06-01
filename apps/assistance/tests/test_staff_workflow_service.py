@@ -4,7 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from apps.assistance.models import AssistanceProgram, RequestDocument, RequestTimeline
-from apps.assistance.services.lifecycle import RequestStatus
+from apps.assistance.services.lifecycle import LOCKED_REQUEST_STATUSES, RequestStatus
 from apps.assistance.services.request_service import RequestSubmissionService
 from apps.assistance.services.staff_workflow_service import (
     StaffWorkflowError,
@@ -341,6 +341,21 @@ class StaffWorkflowServiceTests(TestCase):
         self.assertFalse(requests[0].has_doc_issues)
         self.assertTrue(requests[0].transition_options)
         self.assertTrue(requests[0].can_change_status)
+
+    def test_staff_detail_context_exposes_lifecycle_confirmation_metadata(self):
+        context = build_staff_request_detail_context(
+            request_obj=self.request_obj,
+            user=self.fulfillment,
+        )
+
+        self.assertEqual(
+            set(context["request_status_confirmation_values"]),
+            LOCKED_REQUEST_STATUSES,
+        )
+        self.assertEqual(
+            len(context["locked_status_labels"]),
+            len(context["request_status_confirmation_values"]),
+        )
 
     def test_locked_request_detail_context_disables_reviewer_actions(self):
         self.request_obj.status = RequestStatus.APPROVED
