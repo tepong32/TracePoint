@@ -14,10 +14,13 @@ The long-term goal is to evolve TracePoint into a **multi-tenant public service 
 ---
 
 ## Current Milestone
-**v0.5 - Lifecycle Engine**
+**v0.6.0 - Stabilization**
 
 ### Highlights
+- v0.5 Lifecycle Engine work is released and remains the current workflow foundation
+- v0.6.0 stabilizes lifecycle and public service orchestration without changing behavior
 - centralized request lifecycle policy and staff workflow services
+- public secure continuation through token-backed edit, upload, delete, and tracking flows
 - role-aware staff queues, transitions, document review, and fulfillment
 - citizen progress tracking across submitted, document, review, approval, claim, and closure states
 - approval blocked until all required documents are approved
@@ -64,9 +67,16 @@ The long-term goal is to evolve TracePoint into a **multi-tenant public service 
 
 ### Request Lifecycle Vocabulary
 - Request statuses are centralized in `apps.assistance.services.lifecycle.RequestStatus`.
-- Current v0.5 request lifecycle: `submitted`, `awaiting_documents`, `under_review`, `needs_attention`, `approved`, `claimable`, `claimed`, `closed`.
+- Released request lifecycle states: `submitted`, `awaiting_documents`, `under_review`, `needs_attention`, `approved`, `claimable`, `claimed`, `closed`.
 - Do not reintroduce legacy request states such as `pending`, `review`, or `denied` into request-level logic.
 - Document review statuses are separate from request statuses and still use values like `pending`, `approved`, `clearer_copy`, and `wrong_file`.
+
+### Notification Architecture Decision
+- Notification orchestration remains assistance-local for now in `apps.assistance.services.notifications` and `apps.assistance.services.notification_service` because current triggers are request-lifecycle and document-review domain events.
+- The scaffolded `apps.notifications` package is reserved for a later shared notification app once provider adapters, templates, delivery persistence, or cross-domain notification needs are explicitly designed.
+- Views and models must not import provider-specific Email/SMS implementations; they should call the assistance notification service after the lifecycle or document service has completed the domain mutation.
+- Dispatch must remain best-effort and non-blocking: adapter failures are converted into notification results, logged to the request timeline, and must not roll back lifecycle or document-review changes.
+- The current Email adapter and logging SMS placeholder preserve existing provider behavior; moving interfaces into `apps.notifications` should be a future refactor only, not a behavior change.
 
 ---
 
@@ -81,10 +91,10 @@ TracePoint is being designed as a **reusable GovTech workflow engine** with:
 ---
 
 ## Roadmap
-### v0.5 Wrap-Up
+### v0.6.0 Stabilization
 - browser smoke test public and staff lifecycle flows
 - refine staff UI copy and operational affordances
-- prepare branch for review and release notes
+- keep lifecycle, secure continuation, document review, staff workflow, and notification adapter documentation aligned with released behavior
 
 ### Future Platform Milestones
 - DRF public APIs

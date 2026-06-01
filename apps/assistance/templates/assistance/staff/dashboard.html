@@ -29,27 +29,42 @@
     .err { background: #fdecea; color: #8a1a1a; border: 1px solid #f7c8c8; }
     .context-note { color: #555; margin-top: 0; }
     .queues { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
-    .queue-tab { border: 1px solid #d8d8d8; border-radius: 4px; padding: 6px 10px; color: #222; text-decoration: none; background: #fff; }
+    .queue-tab { border: 1px solid #d8d8d8; border-radius: 4px; padding: 8px 10px; color: #222; text-decoration: none; background: #fff; min-width: 132px; }
     .queue-tab-active { background: #222; color: #fff; border-color: #222; }
+    .queue-label { display: block; font-weight: 700; }
+    .queue-help { display: block; font-size: 11px; margin-top: 2px; color: #666; }
+    .queue-tab-active .queue-help { color: #e8e8e8; }
     .work-panels { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items:start; margin-bottom: 16px; }
     .panel { border: 1px solid #d8d8d8; border-radius: 6px; padding: 10px; background: #fff; }
+    .panel-help { color: #555; margin-top: -4px; font-size: 13px; }
+    .quick-action-help { color: #555; font-size: 12px; margin: 4px 0 0; }
 </style>
 {% endblock %}
 
 {% block content %}
 <h1>Staff Dashboard</h1>
-<p class="context-note">Queue tabs are primary workflow lanes; filters are secondary narrowing tools.</p>
+<p class="context-note">Use queue tabs as lifecycle work lanes. Filters narrow the selected lane without changing request status or workflow rules.</p>
 
 <section class="stats" aria-label="Summary Statistics">
-    <div class="stat-card"><span>Awaiting Documents</span><strong>{{ summary_stats.awaiting_documents_total }}</strong></div>
-    <div class="stat-card"><span>Under Review</span><strong>{{ summary_stats.under_review_total }}</strong></div>
-    <div class="stat-card"><span>Ready to Claim</span><strong>{{ summary_stats.claimable_total }}</strong></div>
-    <div class="stat-card"><span>Approved Today</span><strong>{{ summary_stats.approved_today }}</strong></div>
+    <div class="stat-card"><span>Waiting on Citizen Documents</span><strong>{{ summary_stats.awaiting_documents_total }}</strong></div>
+    <div class="stat-card"><span>Active Staff Review</span><strong>{{ summary_stats.under_review_total }}</strong></div>
+    <div class="stat-card"><span>Ready for Citizen Claim</span><strong>{{ summary_stats.claimable_total }}</strong></div>
+    <div class="stat-card"><span>Approved / Fulfillment Updates Today</span><strong>{{ summary_stats.approved_today }}</strong></div>
 </section>
 
 <nav class="queues" aria-label="Role queues">
     {% for tab in queue_tabs %}
-        <a class="queue-tab {% if tab.active %}queue-tab-active{% endif %}" href="?queue={{ tab.key }}">{{ tab.label }}</a>
+        <a class="queue-tab {% if tab.active %}queue-tab-active{% endif %}" href="?queue={{ tab.key }}">
+            <span class="queue-label">{{ tab.label }}</span>
+            <span class="queue-help">
+                {% if tab.key == 'intake' %}New, waiting, or returned items
+                {% elif tab.key == 'review' %}Document and eligibility review
+                {% elif tab.key == 'approval' %}Final review decisions
+                {% elif tab.key == 'fulfillment' %}Release and claim tracking
+                {% elif tab.key == 'closed' %}Completed request history
+                {% else %}All visible lifecycle items{% endif %}
+            </span>
+        </a>
     {% endfor %}
 </nav>
 
@@ -82,34 +97,36 @@
 
 <section class="work-panels" aria-label="Operational lanes">
     <section class="panel">
-        <h2 style="margin-top: 0;">New / Intake Requests</h2>
+        <h2 style="margin-top: 0;">Intake: New or Waiting on Citizen Action</h2>
+        <p class="panel-help">Start here for newly submitted requests, requests waiting for uploads, and cases returned for citizen correction.</p>
         <table aria-label="New Intake Requests">
             <thead><tr><th>Reference Code</th><th>Name</th><th>Status</th><th>Flags</th><th>Action</th></tr></thead>
             <tbody>
                 {% for req in intake_requests %}
                     <tr class="{% if req.has_missing_documents %}row-missing-docs{% elif req.has_doc_issues or req.status == 'needs_attention' %}row-needs-attention{% endif %}">
                         <td>{{ req.tracking_code }}</td><td>{{ req.full_name }}</td>
-                        <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                        <td><span class="status-pill status-{{ req.status }}">{{ req.get_status_display }}</span></td>
                         <td>{% if req.has_missing_documents %}<span class="flag flag-missing">Missing documents</span>{% endif %}{% if req.has_doc_issues or req.status == 'needs_attention' %}<span class="flag flag-attention">Needs attention</span>{% endif %}</td>
                         <td><a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a></td>
                     </tr>
-                {% empty %}<tr><td colspan="5">No intake requests for current filters.</td></tr>{% endfor %}
+                {% empty %}<tr><td colspan="5">No intake requests match the selected queue and filters.</td></tr>{% endfor %}
             </tbody>
         </table>
     </section>
 
     <section class="panel">
-        <h2 style="margin-top: 0;">Citizen Responded (Back to Review)</h2>
+        <h2 style="margin-top: 0;">Citizen Updates Ready for Re-Review</h2>
+        <p class="panel-help">These requests have citizen follow-up activity and should be checked before advancing through allowed transitions.</p>
         <table aria-label="Citizen Responded Requests">
             <thead><tr><th>Reference Code</th><th>Name</th><th>Status</th><th>Quick Actions</th></tr></thead>
             <tbody>
                 {% for req in citizen_responded_requests %}
                     <tr>
                         <td>{{ req.tracking_code }}</td><td>{{ req.full_name }}</td>
-                        <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                        <td><span class="status-pill status-{{ req.status }}">{{ req.get_status_display }}</span></td>
                         <td>
-                            <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">Review update</a><br />
-                            <label for="status-responsive-{{ req.id }}">Change status</label>
+                            <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">Review citizen update</a><br />
+                            <label for="status-responsive-{{ req.id }}">Allowed lifecycle action</label>
                             <select id="status-responsive-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status" {% if not req.can_change_status %}disabled{% endif %}>
                                 {% for option in req.transition_options %}
                                     <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>{{ option.label }}{% if option.disabled %} - blocked{% endif %}</option>
@@ -117,34 +134,35 @@
                             </select>
                         </td>
                     </tr>
-                {% empty %}<tr><td colspan="4">No citizen-response items in review queue.</td></tr>{% endfor %}
+                {% empty %}<tr><td colspan="4">No citizen updates are waiting in this review queue.</td></tr>{% endfor %}
             </tbody>
         </table>
     </section>
 </section>
 
-<h2>Queue Results</h2>
+<h2>Selected Queue Results</h2>
+<p class="context-note">Rows are scoped by the selected queue and filters. Quick actions only display transitions allowed by the staff workflow service.</p>
 <table aria-label="Assistance Requests">
     <thead><tr><th>Reference Code</th><th>Name</th><th>Assistance Type</th><th>Status</th><th>Submitted</th><th>Flags</th><th>Quick Actions</th></tr></thead>
     <tbody>
         {% for req in requests %}
             <tr class="{% if req.has_missing_documents %}row-missing-docs{% elif req.has_doc_issues or req.status == 'needs_attention' %}row-needs-attention{% endif %}">
                 <td>{{ req.tracking_code }}</td><td>{{ req.full_name }}</td><td>{{ req.program.name }}</td>
-                <td><span class="status-pill status-{{ req.status }}">{{ req.status|title|cut:"_" }}</span></td>
+                <td><span class="status-pill status-{{ req.status }}">{{ req.get_status_display }}</span></td>
                 <td>{{ req.submitted_at|date:"M d, Y H:i" }}</td>
                 <td>{% if req.has_missing_documents %}<span class="flag flag-missing">Missing documents</span>{% endif %}{% if req.has_doc_issues or req.status == 'needs_attention' %}<span class="flag flag-attention">Needs attention</span>{% endif %}</td>
                 <td>
                     <a href="{% url 'assistance_staff:request_detail' request_id=req.id %}">View details</a><br />
-                    <label for="status-{{ req.id }}">Change status</label>
+                    <label for="status-{{ req.id }}">Allowed lifecycle action</label>
                     <select id="status-{{ req.id }}" data-request-id="{{ req.id }}" class="js-inline-status" {% if not req.can_change_status %}disabled{% endif %}>
                         {% for option in req.transition_options %}
                             <option value="{{ option.value }}" {% if option.is_current %}selected{% endif %} {% if option.disabled %}disabled title="{{ option.reason }}"{% endif %}>{{ option.label }}{% if option.disabled %} - blocked{% endif %}</option>
                         {% endfor %}
                     </select>
-                    {% if not req.can_change_status %}<div class="context-note">No status action available</div>{% endif %}
+                    {% if not req.can_change_status %}<div class="context-note">No lifecycle action is currently available for your role or this request state.</div>{% else %}<div class="quick-action-help">Only service-approved next steps are shown.</div>{% endif %}
                 </td>
             </tr>
-        {% empty %}<tr><td colspan="7">No requests match current filters.</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="7">No requests match the selected queue and filters.</td></tr>{% endfor %}
     </tbody>
 </table>
 {% endblock %}

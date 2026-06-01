@@ -38,40 +38,44 @@
         .req-approved { color: #245f34; }
         .transition-note { color: #6b7280; font-size: 12px; margin-top: 4px; }
         .action-hint { margin: 8px 0 0; padding-left: 18px; color: #6b7280; font-size: 12px; }
+        .section-help { color: #555; margin-top: -6px; font-size: 13px; }
+        .fulfillment-note { background: #eef8ee; border: 1px solid #c5e8cc; padding: 10px; margin-bottom: 12px; }
     </style>
 </head>
 <body>
     <p><a href="{% url 'assistance_staff:dashboard' %}">&larr; Back to dashboard</a></p>
-    <h1>Request {{ request_obj.tracking_code }}</h1>
+    <h1>Staff Review: Request {{ request_obj.tracking_code }}</h1>
 
     <section class="context-strip" aria-label="Document review context">
-        <div class="context-item"><span>Total Documents</span><strong>{{ document_review_summary.total }}</strong></div>
-        <div class="context-item"><span>Approved</span><strong>{{ document_review_summary.approved }}</strong></div>
-        <div class="context-item"><span>Pending</span><strong>{{ document_review_summary.pending }}</strong></div>
-        <div class="context-item"><span>Needs Fix</span><strong>{{ document_review_summary.issues }}</strong></div>
+        <div class="context-item"><span>Active Uploaded Documents</span><strong>{{ document_review_summary.total }}</strong></div>
+        <div class="context-item"><span>Approved Documents</span><strong>{{ document_review_summary.approved }}</strong></div>
+        <div class="context-item"><span>Pending Review</span><strong>{{ document_review_summary.pending }}</strong></div>
+        <div class="context-item"><span>Needs Citizen Fix</span><strong>{{ document_review_summary.issues }}</strong></div>
     </section>
 
     {% if is_locked %}
-        <div class="locked">This request is locked ({{ locked_status_labels|join:", " }}). Editing is disabled.</div>
+        <div class="locked">This request is locked by its current lifecycle state. Staff edits, document review changes, and citizen document changes are disabled.</div>
     {% endif %}
     {% if has_needs_attention %}
-        <div class="attention">Needs Attention: missing documents or reviewed documents with issues should be resolved before approval.</div>
+        <div class="attention">Needs attention before approval: missing documents or reviewed document issues must be resolved through the citizen recovery loop.</div>
     {% endif %}
     {% if not document_review_summary.is_complete %}
-        <div class="attention">Approval is blocked until every required document below is approved.</div>
+        <div class="attention">Approval is blocked by the workflow service until every required document below is present and approved.</div>
     {% endif %}
+    <div class="fulfillment-note">Fulfillment reminder: when a fulfillment action is available, confirm that release or claim details are ready before moving to the next allowed lifecycle step.</div>
 
     <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
     <div class="grid">
         <section class="panel">
-            <h2>A. Request Summary</h2>
+            <h2>A. Request Summary and Lifecycle Actions</h2>
+            <p class="section-help">Only allowed next steps from the staff workflow service are available. Blocked actions include the service-provided reason.</p>
             <div class="row"><label>Name</label><div>{{ request_obj.full_name }}</div></div>
             <div class="row"><label>Email</label><div>{{ request_obj.email }}</div></div>
             <div class="row"><label>Phone</label><div>{{ request_obj.phone }}</div></div>
             <div class="row"><label>Assistance Type</label><div>{{ request_obj.program.name }}</div></div>
             <div class="row">
-                <label for="request-status">Status</label>
+                <label for="request-status">Lifecycle Status</label>
                 <div>
                     {% if can_change_status %}
                         <select id="request-status">
@@ -85,13 +89,13 @@
                         <div><strong>{{ request_obj.get_status_display }}</strong></div>
                     {% endif %}
                     {% if not can_change_status %}
-                        <div class="transition-note">No status transition is available for your current role on this request.</div>
+                        <div class="transition-note">No lifecycle transition is currently available for your role on this request.</div>
                     {% endif %}
                     {% if has_blocked_transition_options %}
                         <ul class="action-hint">
                             {% for option in transition_options %}
                                 {% if option.disabled and option.reason %}
-                                    <li>{{ option.reason }}</li>
+                                    <li>Blocked transition: {{ option.reason }}</li>
                                 {% endif %}
                             {% endfor %}
                         </ul>
@@ -99,25 +103,29 @@
                 </div>
             </div>
             <div class="row">
-                <label for="request-remarks">Remarks</label>
-                <div><textarea id="request-remarks" {% if not can_edit_remarks %}disabled{% endif %}>{{ request_obj.remarks }}</textarea></div>
+                <label for="request-remarks">Internal Staff Remarks</label>
+                <div>
+                    <textarea id="request-remarks" {% if not can_edit_remarks %}disabled{% endif %}>{{ request_obj.remarks }}</textarea>
+                    <div class="transition-note">Use remarks for staff-visible review notes. Changes are saved through the existing staff update endpoint and audit timeline.</div>
+                </div>
             </div>
             {% if not can_edit_remarks and is_locked %}
                 <div class="transition-note">Remarks are read-only once a request reaches a locked lifecycle state.</div>
             {% endif %}
             {% if can_save_request_updates %}
-                <button id="save-request">Save Request Update</button>
+                <button id="save-request">Save Lifecycle / Remarks Update</button>
             {% else %}
                 <div class="transition-note">No request updates are available for this role at the current lifecycle state.</div>
             {% endif %}
         </section>
 
         <section class="panel">
-            <h2>B. Document Review Panel</h2>
+            <h2>B. Document Completeness and Review</h2>
+            <p class="section-help">Required-document status comes from the workflow context. Approve only clear, valid files; mark issues with remarks for citizen follow-up.</p>
             {% if not can_review_documents and not is_locked %}
-                <div class="transition-note">Your role can view documents here, but document review actions are disabled.</div>
+                <div class="transition-note">Your role can view documents here, but document review actions are disabled by staff permissions.</div>
             {% endif %}
-            <h3>Required Documents</h3>
+            <h3>Required Documents Checklist</h3>
             <ul class="requirements">
                 {% for item in document_review_summary.required %}
                     <li class="{% if item.is_missing %}req-missing{% elif item.needs_attention %}req-issue{% elif item.status == 'approved' %}req-approved{% endif %}">
@@ -129,18 +137,18 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Required Document</th>
-                        <th>File</th>
-                        <th>Status</th>
-                        <th>Remarks</th>
-                        <th>Action</th>
+                        <th>Uploaded Document</th>
+                        <th>File Review</th>
+                        <th>Document Review State</th>
+                        <th>Reviewer Remarks for Citizen Follow-up</th>
+                        <th>Review Action</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for doc in documents %}
                         <tr class="{% if doc.status == 'approved' %}doc-approved{% elif doc.status == 'pending' %}doc-pending{% else %}doc-issue{% endif %}">
                             <td>{{ doc.get_document_type_display }}</td>
-                            <td><a href="{{ doc.file.url }}" target="_blank" rel="noopener">Preview / Download</a></td>
+                            <td><a href="{{ doc.file.url }}" target="_blank" rel="noopener">Open file for review</a></td>
                             <td>
                                 <select id="doc-status-{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>
                                     {% for value, label in document_status_choices %}
@@ -150,26 +158,28 @@
                             </td>
                             <td><textarea id="doc-remarks-{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>{{ doc.remarks }}</textarea></td>
                             <td>
-                                <button class="js-doc-update" data-document-id="{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>Update</button>
+                                <button class="js-doc-update" data-document-id="{{ doc.id }}" {% if is_locked or not can_review_documents %}disabled{% endif %}>Save Document Review</button>
+                                {% if is_locked %}<div class="transition-note">Locked request: document updates are disabled.</div>{% elif not can_review_documents %}<div class="transition-note">View-only for your role.</div>{% endif %}
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="5">No uploaded documents yet. This request has missing documents.</td></tr>
+                        <tr><td colspan="5">No active uploaded documents yet. Required documents remain missing until the citizen uploads them.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </section>
 
         <section class="panel">
-            <h2>C. Timeline / Logs</h2>
+            <h2>C. Audit Timeline</h2>
+            <p class="section-help">Timeline entries are append-only workflow, document, notification, and staff activity records.</p>
             {% for entry in timeline_items %}
                 <div class="timeline-item">
                     <span class="timeline-badge timeline-{{ entry.tone }}">{{ entry.label }}</span>
                     <strong>{{ entry.item.created_at|date:"M d, Y H:i" }}</strong> - {{ entry.item.message }}
-                    <div>By: {% if entry.item.created_by %}{{ entry.item.created_by }}{% else %}System{% endif %}</div>
+                    <div>Actor: {% if entry.item.created_by %}{{ entry.item.created_by }}{% else %}System{% endif %}</div>
                 </div>
             {% empty %}
-                <p>No timeline entries yet.</p>
+                <p>No audit timeline entries yet.</p>
             {% endfor %}
         </section>
     </div>
