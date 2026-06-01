@@ -7,7 +7,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.assistance.models import CitizenRequest, RequestDocument, RequestTimeline
-from apps.assistance.services.lifecycle import next_status_after_citizen_update
+from apps.assistance.services.lifecycle import (
+    RequestStatus,
+    next_status_after_citizen_update,
+)
 from apps.assistance.services.lifecycle_rules import (
     can_citizen_edit_request,
     is_request_locked,
@@ -115,11 +118,25 @@ class DocumentService:
             document_type=document_type,
             uploaded_file=uploaded_file,
             created_by=created_by,
+            return_to_review=False,
         )
         cls._apply_post_upload_lifecycle(
             citizen_request=citizen_request,
             previous_status=status_before_upload,
         )
+        if status_before_upload == RequestStatus.NEEDS_ATTENTION:
+            message = "Citizen update received; request returned to staff review."
+            if citizen_request.status == RequestStatus.AWAITING_DOCUMENTS:
+                message = (
+                    "Citizen update received; request is still awaiting "
+                    "required documents."
+                )
+            _timeline_event(
+                citizen_request=citizen_request,
+                event_type="citizen_update_received",
+                message=message,
+                created_by=created_by,
+            )
         return document
 
     @classmethod
@@ -167,6 +184,7 @@ class DocumentService:
         document_type: str,
         uploaded_file,
         created_by=None,
+        return_to_review: bool = True,
     ) -> RequestDocument:
         """
         Last write wins per (request, document_type):
@@ -216,10 +234,11 @@ class DocumentService:
                     ),
                     created_by=created_by,
                 )
-                _return_to_review_after_citizen_update(
-                    citizen_request=citizen_request,
-                    created_by=created_by,
-                )
+                if return_to_review:
+                    _return_to_review_after_citizen_update(
+                        citizen_request=citizen_request,
+                        created_by=created_by,
+                    )
                 doc = active
             else:
                 removed = (
@@ -252,10 +271,11 @@ class DocumentService:
                         ),
                         created_by=created_by,
                     )
-                    _return_to_review_after_citizen_update(
-                        citizen_request=citizen_request,
-                        created_by=created_by,
-                    )
+                    if return_to_review:
+                        _return_to_review_after_citizen_update(
+                            citizen_request=citizen_request,
+                            created_by=created_by,
+                        )
                     doc = removed
                 else:
                     doc = RequestDocument.objects.create(
@@ -270,10 +290,11 @@ class DocumentService:
                         message=f"Supporting document ({document_type}) uploaded.",
                         created_by=created_by,
                     )
-                    _return_to_review_after_citizen_update(
-                        citizen_request=citizen_request,
-                        created_by=created_by,
-                    )
+                    if return_to_review:
+                        _return_to_review_after_citizen_update(
+                            citizen_request=citizen_request,
+                            created_by=created_by,
+                        )
 
         assert doc is not None
         for name in tuple(superseded_names):

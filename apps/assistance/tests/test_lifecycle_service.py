@@ -1,10 +1,12 @@
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
-from apps.assistance.models import AssistanceProgram, RequestTimeline
+from apps.assistance.models import AssistanceProgram, RequestDocument, RequestTimeline
 from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.lifecycle_service import (
     LifecycleTransitionError,
+    apply_auto_status_transition,
     transition_request_status,
 )
 from apps.assistance.services.request_service import RequestSubmissionService
@@ -24,6 +26,25 @@ class LifecycleServiceTests(TestCase):
             email="lina@example.com",
             phone="09123456789",
         )
+
+    def _pdf(self, name: str) -> SimpleUploadedFile:
+        return SimpleUploadedFile(name, b"%PDF-1.4 test", content_type="application/pdf")
+
+    def test_auto_transition_sends_all_pending_required_documents_to_review(self):
+        self.request_obj.status = RequestStatus.AWAITING_DOCUMENTS
+        self.request_obj.save(update_fields=["status", "updated_at"])
+        for document_type in ("birth_cert", "indigency", "school_id"):
+            RequestDocument.objects.create(
+                request=self.request_obj,
+                document_type=document_type,
+                file=self._pdf(f"{document_type}.pdf"),
+                status="pending",
+            )
+
+        apply_auto_status_transition(self.request_obj)
+
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, RequestStatus.UNDER_REVIEW)
 
     def test_valid_forward_transition_is_logged(self):
         transition_request_status(

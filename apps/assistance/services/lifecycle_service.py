@@ -111,9 +111,14 @@ def apply_auto_status_transition(
     result = evaluate_request_completeness(request_obj)
     old_status = previous_status_for_audit or request_obj.status
 
+    has_actionable_document_issues = any(
+        doc.get("status") not in {"approved", "pending"}
+        for doc in result["problematic_documents"]
+    )
+
     if result["missing_documents"]:
         new_status = RequestStatus.AWAITING_DOCUMENTS
-    elif result["has_issues"]:
+    elif has_actionable_document_issues:
         new_status = RequestStatus.NEEDS_ATTENTION
     else:
         new_status = RequestStatus.UNDER_REVIEW
