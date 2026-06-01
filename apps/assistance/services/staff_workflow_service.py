@@ -206,6 +206,17 @@ def can_edit_request_remarks(request_obj: CitizenRequest) -> bool:
     return not is_request_locked(request_obj)
 
 
+def request_status_confirmation_metadata() -> dict:
+    status_labels = dict(REQUEST_STATUS_CHOICES)
+    confirmation_values = [
+        value for value, _label in REQUEST_STATUS_CHOICES if is_locked_status(value)
+    ]
+    return {
+        "values": confirmation_values,
+        "labels": [status_labels[value] for value in confirmation_values],
+    }
+
+
 def apply_staff_queue_metadata(requests: list[CitizenRequest], user) -> list[CitizenRequest]:
     for request_obj in requests:
         completeness = evaluate_request_completeness(request_obj)
@@ -318,6 +329,7 @@ def build_staff_request_detail_context(*, request_obj: CitizenRequest, user) -> 
         not option["is_current"] and option["disabled"]
         for option in transition_options
     )
+    confirmation_metadata = request_status_confirmation_metadata()
 
     return {
         "documents": documents,
@@ -329,6 +341,8 @@ def build_staff_request_detail_context(*, request_obj: CitizenRequest, user) -> 
         "can_save_request_updates": can_save_request_updates,
         "has_blocked_transition_options": blocked_transition_options,
         "is_locked": is_request_locked(request_obj),
+        "request_status_confirmation_values": confirmation_metadata["values"],
+        "locked_status_labels": confirmation_metadata["labels"],
         "can_review_documents": can_review_documents(user),
         "has_needs_attention": bool(
             document_summary["missing"] or document_summary["problematic"]
