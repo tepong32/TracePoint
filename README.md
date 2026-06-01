@@ -68,6 +68,13 @@ The long-term goal is to evolve TracePoint into a **multi-tenant public service 
 - Do not reintroduce legacy request states such as `pending`, `review`, or `denied` into request-level logic.
 - Document review statuses are separate from request statuses and still use values like `pending`, `approved`, `clearer_copy`, and `wrong_file`.
 
+### Notification Architecture Decision
+- Notification orchestration remains assistance-local for now in `apps.assistance.services.notifications` and `apps.assistance.services.notification_service` because current triggers are request-lifecycle and document-review domain events.
+- The scaffolded `apps.notifications` package is reserved for a later shared notification app once provider adapters, templates, delivery persistence, or cross-domain notification needs are explicitly designed.
+- Views and models must not import provider-specific Email/SMS implementations; they should call the assistance notification service after the lifecycle or document service has completed the domain mutation.
+- Dispatch must remain best-effort and non-blocking: adapter failures are converted into notification results, logged to the request timeline, and must not roll back lifecycle or document-review changes.
+- The current Email adapter and logging SMS placeholder preserve existing provider behavior; moving interfaces into `apps.notifications` should be a future refactor only, not a behavior change.
+
 ---
 
 ## Product Direction
