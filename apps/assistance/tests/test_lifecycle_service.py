@@ -38,8 +38,36 @@ class LifecycleServiceTests(TestCase):
                 request=self.request_obj,
                 document_type=document_type,
                 file=self._pdf(f"{document_type}.pdf"),
-                status="pending",
+                status=RequestDocument.STATUS_CHOICES[0][0],
             )
+
+        apply_auto_status_transition(self.request_obj)
+
+        self.request_obj.refresh_from_db()
+        self.assertEqual(self.request_obj.status, RequestStatus.UNDER_REVIEW)
+
+    def test_auto_transition_ignores_optional_document_issue_when_required_complete(self):
+        self.request_obj.status = RequestStatus.AWAITING_DOCUMENTS
+        self.request_obj.save(update_fields=["status", "updated_at"])
+        for document_type in ("birth_cert", "indigency"):
+            RequestDocument.objects.create(
+                request=self.request_obj,
+                document_type=document_type,
+                file=self._pdf(f"{document_type}.pdf"),
+                status=RequestDocument.STATUS_CHOICES[1][0],
+            )
+        RequestDocument.objects.create(
+            request=self.request_obj,
+            document_type="school_id",
+            file=self._pdf("school_id.pdf"),
+            status=RequestDocument.STATUS_CHOICES[0][0],
+        )
+        RequestDocument.objects.create(
+            request=self.request_obj,
+            document_type="others",
+            file=self._pdf("others.pdf"),
+            status=RequestDocument.STATUS_CHOICES[3][0],
+        )
 
         apply_auto_status_transition(self.request_obj)
 
