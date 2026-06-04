@@ -40,7 +40,7 @@ def evaluate_request_completeness(request: CitizenRequest) -> dict:
     - Missing: required doc type has no active document.
     - Problematic: active document status is not "approved".
     - Complete: all required docs exist and are approved.
-    - Has issues: any active document is not approved.
+    - Has issues: any required active document is not approved.
     """
 
     required_documents = get_required_documents(request)
@@ -109,4 +109,5 @@ def evaluate_request_completeness(request: CitizenRequest) -> dict:
         "has_issues": has_issues,
         "missing_documents": missing_documents,
         "problematic_documents": problematic_documents,
+        "required_problematic_documents": required_problematic,
     }

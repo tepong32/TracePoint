@@ -1,4 +1,4 @@
-from apps.assistance.models.models import CitizenRequest, RequestTimeline
+from apps.assistance.models.models import CitizenRequest, RequestDocument, RequestTimeline
 from apps.assistance.services.evaluator import evaluate_request_completeness
 from apps.assistance.services.lifecycle import RequestStatus
 from apps.assistance.services.lifecycle_rules import (
@@ -111,9 +111,18 @@ def apply_auto_status_transition(
     result = evaluate_request_completeness(request_obj)
     old_status = previous_status_for_audit or request_obj.status
 
+    non_actionable_review_statuses = {
+        RequestDocument.STATUS_CHOICES[0][0],
+        RequestDocument.STATUS_CHOICES[1][0],
+    }
+    has_actionable_document_issues = any(
+        doc.get("status") not in non_actionable_review_statuses
+        for doc in result["required_problematic_documents"]
+    )
+
     if result["missing_documents"]:
         new_status = RequestStatus.AWAITING_DOCUMENTS
-    elif result["has_issues"]:
+    elif has_actionable_document_issues:
         new_status = RequestStatus.NEEDS_ATTENTION
     else:
         new_status = RequestStatus.UNDER_REVIEW
