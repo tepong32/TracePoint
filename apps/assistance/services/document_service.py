@@ -12,12 +12,20 @@ from apps.assistance.services.lifecycle import (
     next_status_after_citizen_update,
     requires_citizen_action,
 )
+from apps.assistance.services.lifecycle_service import apply_auto_status_transition
 
 
 class DocumentServiceError(Exception):
     """Business rule violation for document operations (map to HTTP in views)."""
 
     pass
+
+
+FALLBACK_DOCUMENT_REVIEW_STATUS_CHOICES = (
+    "pending",
+    "approved",
+    "clearer_copy",
+)
 
 
 def validate_uploaded_file(uploaded_file) -> None:
@@ -40,6 +48,13 @@ def validate_uploaded_file(uploaded_file) -> None:
 
 def _allowed_document_types() -> frozenset[str]:
     return frozenset(k for k, _ in RequestDocument.DOCUMENT_TYPE_CHOICES)
+
+
+def _allowed_review_statuses() -> frozenset[str]:
+    status_choices = RequestDocument._meta.get_field("status").choices
+    if status_choices:
+        return frozenset(k for k, _ in status_choices)
+    return frozenset(FALLBACK_DOCUMENT_REVIEW_STATUS_CHOICES)
 
 
 def _assert_request_allows_document_changes(citizen_request: CitizenRequest) -> None:
@@ -253,3 +268,60 @@ class DocumentService:
                 citizen_request=citizen_request,
                 created_by=created_by,
             )
+
+    @classmethod
+    def update_review_status(
+        cls,
+        *,
+        document_id: int,
+        status: str,
+        remarks: str,
+        actor,
+    ) -> RequestDocument:
+        """Apply a staff document review decision and write an audit timeline row."""
+        new_status = (status or "").strip()
+        if not new_status:
+            raise ValidationError("Missing document status.")
+        if new_status not in _allowed_review_statuses():
+            raise ValidationError("Invalid document status.")
+
+        new_remarks = (remarks or "").strip()
+
+        with transaction.atomic():
+            document = (
+                RequestDocument.objects.select_for_update()
+                .select_related("request")
+                .get(id=document_id, is_removed=False)
+            )
+            citizen_request = document.request
+            if not citizen_request.is_active:
+                raise DocumentServiceError("This request is no longer active.")
+
+            old_status = document.status
+            old_remarks = document.remarks or ""
+
+            document.status = new_status
+            document.remarks = new_remarks
+            document.save(update_fields=["status", "remarks", "updated_at"])
+
+            _timeline_event(
+                citizen_request=citizen_request,
+                event_type="staff_document_review_updated",
+                message=(
+                    f"Staff document review updated for {document.document_type}; "
+                    f"status_before={old_status}; "
+                    f"status_after={new_status}; "
+                    f"remarks_before={old_remarks}; "
+                    f"remarks_after={new_remarks}"
+                ),
+                created_by=actor,
+            )
+
+        try:
+            apply_auto_status_transition(citizen_request)
+        except Exception:
+            # Safety guard: never break existing AJAX response shape because an
+            # automatic lifecycle recalculation failed after the review update.
+            pass
+
+        return document
