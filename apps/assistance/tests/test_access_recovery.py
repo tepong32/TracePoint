@@ -61,6 +61,34 @@ class PublicAccessRecoveryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Recover request access")
         self.assertContains(home_response, self.recovery_url)
+        self.assertNotContains(home_response, "Staff Dashboard")
+
+    def test_home_tracking_form_redirects_to_active_request(self):
+        request_obj = self._request(email="tracking@example.com")
+
+        response = self.client.post(
+            reverse("home"),
+            {"tracking_code": request_obj.tracking_code},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "assistance:track_request",
+                kwargs={"tracking_code": request_obj.tracking_code},
+            ),
+            fetch_redirect_response=False,
+        )
+
+    def test_home_tracking_form_explains_unknown_code(self):
+        response = self.client.post(
+            reverse("home"),
+            {"tracking_code": "TP-NOT-FOUND"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "We could not find an active request")
+        self.assertContains(response, "recover your request links")
 
     def test_one_digest_contains_all_active_requests(self):
         first = self._request(email="citizen@example.com", name="First")

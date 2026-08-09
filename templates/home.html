@@ -4,26 +4,58 @@
 
 {% block extra_css %}
 <style>
-    .hero { display:grid; gap:12px; margin-bottom: 14px; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-    .cta { display:inline-block; margin-top: 8px; color:#124fa3; text-decoration:none; font-weight:600; }
-    ul { margin: 0; padding-left: 18px; }
+    .hero { display:grid; gap:8px; margin-bottom: 18px; border-top: 6px solid var(--brand); }
+    .hero p { max-width: 720px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .tracking-card { grid-column: span 2; }
+    .tracking-form { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px; align-items: end; max-width: 760px; }
+    .field-group { display: grid; gap: 6px; }
+    .field-group label { font-weight: 800; }
+    .field-group input { min-height: 48px; width: 100%; padding: 10px 12px; border: 2px solid var(--line); border-radius: 8px; }
+    .error-list { color: #8a1a1a; margin: 6px 0 0; padding-left: 22px; }
+    .program-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .help-link { display: inline-flex; margin-top: 14px; font-weight: 800; }
+    @media (max-width: 760px) {
+        .tracking-card { grid-column: span 1; }
+        .tracking-form { grid-template-columns: 1fr; }
+        .tracking-form button { width: 100%; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <section class="hero card">
-    <h1 style="margin:0;">Welcome to TracePoint</h1>
-    <p style="margin:0; color:#4b5563;">Citizen request submission, tracking, and staff review workflows.</p>
+    <h1 style="margin:0;">How can we help you today?</h1>
+    <p style="margin:0; color:var(--muted);">Submit an assistance request, check its progress, or recover a link you can no longer find.</p>
 </section>
 
 <section class="grid">
+    <article class="card tracking-card">
+        <h2 style="margin-top:0;">Check my request</h2>
+        <p>Enter the tracking code you received after submitting your request.</p>
+        <form method="post" class="tracking-form">
+            {% csrf_token %}
+            <div class="field-group">
+                <label for="{{ tracking_form.tracking_code.id_for_label }}">{{ tracking_form.tracking_code.label }}</label>
+                {{ tracking_form.tracking_code }}
+                {% if tracking_form.tracking_code.errors %}
+                    <ul class="error-list">
+                        {% for error in tracking_form.tracking_code.errors %}<li>{{ error }}</li>{% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <button type="submit">Check request status</button>
+        </form>
+        <a class="help-link" href="{% url 'assistance:recover_access' %}">I lost my tracking code or request link</a>
+    </article>
+
     <article class="card">
-        <h2 style="margin-top:0;">Submit a Request</h2>
+        <h2 style="margin-top:0;">Start a new request</h2>
+        <p>Choose the assistance program you want to apply for.</p>
         {% if programs %}
-            <ul>
+            <ul class="program-list">
             {% for program in programs %}
-                <li><a class="cta" href="/assistance/submit/{{ program.slug }}/">{{ program.name }}</a></li>
+                <li><a class="button-link button-secondary" href="{% url 'assistance:submit_request' program_slug=program.slug %}">{{ program.name }}</a></li>
             {% endfor %}
             </ul>
         {% else %}
@@ -32,16 +64,9 @@
     </article>
 
     <article class="card">
-        <h2 style="margin-top:0;">Track Existing Request</h2>
-        <p>Use your tracking code from submission confirmation.</p>
-        <a class="cta" href="{% url 'assistance:recover_access' %}">Recover request access</a>
-        <p style="margin-bottom:0; color:#6b7280;">URL format: <code>/assistance/track/&lt;tracking_code&gt;/</code></p>
-    </article>
-
-    <article class="card">
-        <h2 style="margin-top:0;">Staff Workspace</h2>
-        <p>For authenticated and authorized staff users only.</p>
-        <a class="cta" href="/assistance/staff/dashboard/">Open staff dashboard</a>
+        <h2 style="margin-top:0;">Cannot find your request?</h2>
+        <p>We can email your active request links to the address you used when applying.</p>
+        <a class="button-link" href="{% url 'assistance:recover_access' %}">Email my request links</a>
     </article>
 </section>
 {% endblock %}

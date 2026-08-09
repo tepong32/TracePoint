@@ -5,30 +5,50 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}TracePoint{% endblock %}</title>
     <style>
-        :root { --bg:#f6f8fb; --card:#fff; --line:#d8dbe3; --text:#1f2937; --muted:#6b7280; --brand:#124fa3; }
+        :root { --bg:#f4f7fb; --card:#fff; --line:#c9d2df; --text:#172033; --muted:#4b5563; --brand:#0b4f93; --brand-dark:#073b70; --focus:#f0a202; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, sans-serif; color: var(--text); background: var(--bg); }
-        .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+        html { font-size: 18px; }
+        body { margin: 0; font-family: Verdana, Tahoma, sans-serif; line-height: 1.6; color: var(--text); background: var(--bg); }
+        a { color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+        a:hover { color: var(--brand-dark); }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; }
+        .skip-link { position: absolute; left: 12px; top: -80px; z-index: 10; padding: 10px 14px; background: #fff; color: var(--text); font-weight: 700; }
+        .skip-link:focus { top: 10px; }
+        .container { max-width: 1120px; margin: 0 auto; padding: 20px 16px 32px; }
         .topbar { background: #fff; border-bottom: 1px solid var(--line); }
-        .topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
-        .brand { font-weight: 700; text-decoration: none; color: var(--text); }
-        .nav-links { display: flex; gap: 12px; }
-        .nav-links a { color: var(--brand); text-decoration: none; font-weight: 600; }
-        .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+        .topbar-inner { max-width: 1120px; margin: 0 auto; padding: 14px 16px; display: flex; gap: 18px; justify-content: space-between; align-items: center; }
+        .brand { font-size: 1.2rem; font-weight: 800; text-decoration: none; color: var(--text); }
+        .nav-links { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+        .nav-links a { min-height: 44px; display: inline-flex; align-items: center; color: var(--brand); font-weight: 700; }
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; box-shadow: 0 3px 12px rgba(23, 32, 51, .06); }
+        .button-link, button { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 10px 18px; border: 2px solid var(--brand); border-radius: 8px; background: var(--brand); color: #fff; font: inherit; font-weight: 800; text-decoration: none; cursor: pointer; }
+        .button-link:hover, button:hover { background: var(--brand-dark); color: #fff; }
+        .button-secondary { background: #fff; color: var(--brand); }
+        .button-secondary:hover { background: #eaf2fb; color: var(--brand-dark); }
+        input, select, textarea { font: inherit; }
+        @media (max-width: 640px) {
+            html { font-size: 17px; }
+            .topbar-inner { align-items: flex-start; flex-direction: column; gap: 6px; }
+            .nav-links { gap: 14px; }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="topbar">
         <div class="topbar-inner">
             <a href="/" class="brand">TracePoint</a>
             <nav class="nav-links">
                 <a href="/">Home</a>
-                <a href="/assistance/staff/dashboard/">Staff Dashboard</a>
+                <a href="{% url 'assistance:recover_access' %}">Recover request access</a>
+                {% if user.is_authenticated and user.is_staff %}
+                    <a href="/assistance/staff/dashboard/">Staff Dashboard</a>
+                {% endif %}
             </nav>
         </div>
     </header>
-    <main class="container">
+    <main id="main-content" class="container">
         {% block content %}{% endblock %}
     </main>
     {% block extra_js %}{% endblock %}
