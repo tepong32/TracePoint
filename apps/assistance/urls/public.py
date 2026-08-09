@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.assistance.views.public import (
     delete_document_view,
+    recover_access_view,
     secure_edit_view,
     submit_request_view,
     track_request_view,
@@ -11,6 +12,11 @@ from apps.assistance.views.public import (
 app_name = "assistance"
 
 urlpatterns = [
+    path(
+        "recover/",
+        recover_access_view,
+        name="recover_access",
+    ),
     path(
         "submit/<slug:program_slug>/",
         submit_request_view,

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+from collections.abc import Iterable
 from typing import Protocol
 
 from django.conf import settings
@@ -36,16 +37,33 @@ class NotificationTrigger:
 
 
 @dataclass(frozen=True)
+class AccessRecoveryTrigger:
+    """Channel-neutral digest payload for public access recovery."""
+
+    recipient_email: str
+    recipient_phone: str
+    subject: str
+    message: str
+
+
+@dataclass(frozen=True)
 class NotificationResult:
     channel: str
     status: str
     message: str
 
 
+class NotificationPayload(Protocol):
+    recipient_email: str
+    recipient_phone: str
+    subject: str
+    message: str
+
+
 class NotificationAdapter(Protocol):
     channel: str
 
-    def send(self, trigger: NotificationTrigger) -> NotificationResult:
+    def send(self, trigger: NotificationPayload) -> NotificationResult:
         """Send one notification trigger through a concrete channel."""
 
 
@@ -127,7 +145,7 @@ def prepare_document_review_notification(
 class EmailNotificationAdapter:
     channel = "email"
 
-    def send(self, trigger: NotificationTrigger) -> NotificationResult:
+    def send(self, trigger: NotificationPayload) -> NotificationResult:
         if not trigger.recipient_email:
             return NotificationResult(self.channel, "skipped", "Missing email recipient.")
 
@@ -146,7 +164,7 @@ class EmailNotificationAdapter:
 class LoggingSmsNotificationAdapter:
     channel = "sms"
 
-    def send(self, trigger: NotificationTrigger) -> NotificationResult:
+    def send(self, trigger: NotificationPayload) -> NotificationResult:
         if not trigger.recipient_phone:
             return NotificationResult(self.channel, "skipped", "Missing SMS recipient.")
 
@@ -189,9 +207,15 @@ def get_enabled_notification_channels() -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def get_notification_adapters() -> tuple[NotificationAdapter, ...]:
+def get_notification_adapters(
+    channels: Iterable[str] | None = None,
+) -> tuple[NotificationAdapter, ...]:
     adapters = []
-    for channel in get_enabled_notification_channels():
+    selected_channels = (
+        channels if channels is not None else get_enabled_notification_channels()
+    )
+    for channel in selected_channels:
+        channel = str(channel).strip().lower()
         adapter_cls = NOTIFICATION_ADAPTERS.get(channel)
         if adapter_cls is None:
             logger.warning("Unknown notification channel configured: %s", channel)
@@ -216,6 +240,26 @@ def _record_notification_result(
     )
 
 
+def _record_group_notification_result(
+    *,
+    citizen_requests: Iterable[CitizenRequest],
+    result: NotificationResult,
+) -> None:
+    timelines = [
+        RequestTimeline(
+            request=request_obj,
+            event_type="access_recovery",
+            message=(
+                "action_type=access_recovery; "
+                f"channel={result.channel}; "
+                f"status={result.status}"
+            ),
+        )
+        for request_obj in citizen_requests
+    ]
+    RequestTimeline.objects.bulk_create(timelines)
+
+
 def _adapter_failure_result(adapter: NotificationAdapter, exc: Exception) -> NotificationResult:
     return NotificationResult(
         adapter.channel,
@@ -225,6 +269,22 @@ def _adapter_failure_result(adapter: NotificationAdapter, exc: Exception) -> Not
             f"{exc.__class__.__name__}: {exc}"
         ),
     )
+
+
+def _dispatch_results(
+    trigger: NotificationPayload,
+    *,
+    channels: Iterable[str] | None = None,
+) -> list[NotificationResult]:
+    results: list[NotificationResult] = []
+    for adapter in get_notification_adapters(channels):
+        try:
+            result = adapter.send(trigger)
+        except Exception as exc:
+            result = _adapter_failure_result(adapter, exc)
+            logger.exception("Notification adapter failed.")
+        results.append(result)
+    return results
 
 
 def dispatch_notification(
@@ -239,18 +299,31 @@ def dispatch_notification(
     if trigger is None:
         return []
 
-    results: list[NotificationResult] = []
-    for adapter in get_notification_adapters():
-        try:
-            result = adapter.send(trigger)
-        except Exception as exc:
-            result = _adapter_failure_result(adapter, exc)
-            logger.exception("Notification adapter failed.")
-
-        results.append(result)
+    results = _dispatch_results(trigger)
+    for result in results:
         _record_notification_result(
             citizen_request=citizen_request,
             result=result,
         )
 
+    return results
+
+
+def dispatch_group_notification(
+    trigger: NotificationPayload,
+    *,
+    citizen_requests: Iterable[CitizenRequest],
+    channels: Iterable[str],
+) -> list[NotificationResult]:
+    """Send one payload and append the result to every related request."""
+    requests = tuple(citizen_requests)
+    if not requests:
+        return []
+
+    results = _dispatch_results(trigger, channels=channels)
+    for result in results:
+        _record_group_notification_result(
+            citizen_requests=requests,
+            result=result,
+        )
     return results

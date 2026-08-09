@@ -125,3 +125,14 @@ TRACEPOINT_UPLOAD_ALLOWED_EXTENSIONS = tuple(
     ).split(',')
     if ext.strip()
 )
+
+# Public recovery throttles. A shared production cache should back these limits.
+TRACEPOINT_RECOVERY_WINDOW_SECONDS = int(
+    os.getenv('TRACEPOINT_RECOVERY_WINDOW_SECONDS', '900')
+)
+TRACEPOINT_RECOVERY_EMAIL_LIMIT = int(
+    os.getenv('TRACEPOINT_RECOVERY_EMAIL_LIMIT', '3')
+)
+TRACEPOINT_RECOVERY_IP_LIMIT = int(
+    os.getenv('TRACEPOINT_RECOVERY_IP_LIMIT', '10')
+)

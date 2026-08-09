@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Recover Request Access | TracePoint{% endblock %}
+
+{% block extra_css %}
+<style>
+    .recovery-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(240px, .75fr); gap: 16px; align-items: start; }
+    .recovery-form { display: grid; gap: 10px; }
+    .recovery-form label { font-weight: 700; }
+    .recovery-form input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+    .recovery-form button { width: fit-content; padding: 9px 14px; border: 0; border-radius: 6px; background: var(--brand); color: #fff; font-weight: 700; cursor: pointer; }
+    .message { border: 1px solid #9bbfe8; border-radius: 6px; padding: 10px 12px; background: #eef5ff; color: #163b5c; margin-bottom: 14px; }
+    .errors { color: #8a1a1a; margin: 0; padding-left: 18px; }
+    .muted { color: var(--muted); }
+    @media (max-width: 720px) { .recovery-layout { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<p><a href="{% url 'home' %}">&larr; Back to home</a></p>
+<h1>Recover request access</h1>
+
+{% for message in messages %}
+    <div class="message" role="status">{{ message }}</div>
+{% endfor %}
+
+<div class="recovery-layout">
+    <section class="card">
+        <h2 style="margin-top:0;">Email my request links</h2>
+        <p class="muted">Enter the email used when submitting. If matching active requests exist, one email will contain their tracking and continuation links.</p>
+        <form method="post" class="recovery-form">
+            {% csrf_token %}
+            <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+            {{ form.email }}
+            {% if form.email.errors %}
+                <ul class="errors">
+                    {% for error in form.email.errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+            <button type="submit">Send access links</button>
+        </form>
+    </section>
+
+    <aside class="card">
+        <h2 style="margin-top:0;">Privacy and security</h2>
+        <p>For your protection, this page does not confirm whether an email address has matching requests.</p>
+        <p style="margin-bottom:0;">Existing secure links remain valid. If you did not request an email, no action is required.</p>
+    </aside>
+</div>
+{% endblock %}

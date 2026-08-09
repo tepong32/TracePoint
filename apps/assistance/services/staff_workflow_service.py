@@ -85,6 +85,7 @@ TIMELINE_EVENT_META = {
     "document_removed": ("Document Removed", "document"),
     "citizen_update_received": ("Citizen Update", "citizen"),
     "notification": ("Notification", "notification"),
+    "access_recovery": ("Access Recovery", "notification"),
     "workflow_error": ("Workflow Error", "danger"),
 }
 

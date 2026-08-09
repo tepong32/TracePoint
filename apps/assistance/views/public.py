@@ -4,7 +4,12 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.assistance.forms import RecoverAccessForm
 from apps.assistance.models.models import AssistanceProgram, CitizenRequest, RequestDocument
+from apps.assistance.services.access_recovery_service import (
+    GENERIC_RECOVERY_MESSAGE,
+    PublicAccessRecoveryService,
+)
 from apps.assistance.services.public_progress_service import build_public_progress_context
 from apps.assistance.services.public_request_service import (
     PublicMutationError,
@@ -53,6 +58,26 @@ def submit_request_view(request, program_slug):
         request,
         "assistance/public/submit_request.html",
         {"program": program},
+    )
+
+
+def recover_access_view(request):
+    if request.method == "POST":
+        form = RecoverAccessForm(request.POST)
+        if form.is_valid():
+            PublicAccessRecoveryService.request_recovery(
+                request=request,
+                email=form.cleaned_data["email"],
+            )
+            messages.success(request, GENERIC_RECOVERY_MESSAGE)
+            return redirect("assistance:recover_access")
+    else:
+        form = RecoverAccessForm()
+
+    return render(
+        request,
+        "assistance/public/recover_access.html",
+        {"form": form},
     )
 
 
