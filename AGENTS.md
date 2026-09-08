@@ -312,3 +312,41 @@ Unless a task says otherwise:
 - Avoid large rewrites without first naming the tradeoff.
 - Leave placeholders only when they are clearly marked and useful to Gar or the
   project owner.
+
+## Project context and documentation map
+
+Django citizen-assistance application with secure public continuation, document lifecycle and service-owned request transitions. apps/assistance owns the main domain; apps/notifications is the notification integration boundary; src/settings separates configuration.
+
+### Durable boundaries
+
+Preserve service-owned lifecycle transitions, secure edit/access recovery, staff permission boundaries, document soft-delete/replacement semantics and audit history. Never commit local databases, uploaded citizen documents, generated static files or credentials. This standalone app is distinct from GRAND's physical-custody module.
+
+### Development state
+
+Published master includes the lifecycle-engine merge at 0000ff8. Existing README/AGENTS milestone and test notes include historical snapshots; verify source/tests before treating them as current. Later AdminLTE and staff-workflow development is not merged by this documentation change.
+
+### Read next
+
+- [CHANGELOG.md](CHANGELOG.md)
+- [src/settings/base.py](src/settings/base.py)
+- [apps/assistance/services](apps/assistance/services)
+- [apps/assistance/tests](apps/assistance/tests)
+- [apps/notifications](apps/notifications)
+- [Continuation entry point](CONTINUE.md)
+
+### Project validation
+
+Start with `python manage.py test apps.assistance.tests.<affected_test_module>` and related notification tests. Broaden for auth/access recovery, lifecycle transitions, permissions, document storage and schema changes. Use isolated test storage; do not overwrite the local database or citizen uploads.
+
+## Repository continuity and proportional testing
+
+- Maintain this root AGENTS.md in version control as portable operational context. Preserve applicable nested instructions. Update it in the same phase as durable architecture, security, integration, major completion/deferral or testing-policy changes.
+- Keep this file concise: identity, boundaries, decisions and a documentation map. Replace stale summaries; never append transcripts, line-by-line diaries or duplicate full specifications.
+- Before substantial work read AGENTS.md, CONTINUE.md (and its canonical handoff target), the relevant roadmap/architecture/feature documents, recent Git history/status and affected tests. Reconcile stale snapshots against source; do not ask the user to repeat documented context.
+- At task completion update the canonical handoff for immediate state, actual validation, blockers and next steps; update the roadmap for agreed direction changes and specialized architecture/feature/audit/testing documents where applicable. Cross-link instead of duplicating them. Do not invent completed phases or new priorities.
+- Test the changed area first: direct unit/feature tests, related integration tests and dependent regressions. Expand for shared models/services/utilities, auth/permissions, middleware, schema/migrations, settings/environments, shared UI, cross-app APIs, reporting, jobs or build/deployment changes. Uncertain impact requires broader validation.
+- Full suites are appropriate for broad refactors, cross-module/security/infrastructure changes, major milestones and release/production gates, not automatically every isolated edit. Preserve stricter project-specific safety, reachability, hardware and release checks.
+- Record relevant commands, scope rationale and outcomes in the handoff or appropriate validation report: PASS; FAIL - CAUSED BY CURRENT WORK; FAIL - PRE-EXISTING (with evidence); NOT RUN - OUT OF SCOPE (with rationale); NOT RUN - ENVIRONMENTAL (with limitation).
+- Investigate failures before calling them unrelated. Fix regressions caused by the change and document evidence for pre-existing failures. A skipped test or unperformed human/operational acceptance is never a pass.
+- Keep documentation, code and validation evidence sufficient for a fresh session to resume without a conversation transcript.
+- Install additional standalone software/tooling under C:/xxx/_INSTALLS/_HERE/_xxx unless the user specifies otherwise.
