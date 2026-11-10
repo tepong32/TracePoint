@@ -116,16 +116,16 @@ Run all Django tests:
 Version helper:
 
 ```powershell
-.\env\Scripts\python.exe version_manager.py --help
+.\env\Scripts\python.exe tools/version_manager.py --help
 ```
 
 In Git Bash, the project owner uses this alias from `.bashrc`:
 
 ```bash
-alias vm="python version_manager.py"
+alias vm="python tools/version_manager.py"
 ```
 
-When bumping versions, prefer the project workflow through `version_manager.py`
+When bumping versions, prefer the project workflow through `tools/version_manager.py`
 instead of hand-editing `VERSION` and `CHANGELOG.md` separately.
 
 ## Current Local Test Note
